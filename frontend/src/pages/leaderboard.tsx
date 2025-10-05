@@ -49,11 +49,13 @@ export default function Leaderboard() {
     const fetchLeaderboard = async () => {
       setIsLoading(true);
       try {
-        const response = await leaderboardAPI.get(
+        const response = await leaderboardAPI.getLeaderboard(
           currentPage,
           perPage,
-          timePeriod,
-          baselineImageId || undefined
+          {
+            time_period: timePeriod,
+            baseline_image_id: baselineImageId || undefined,
+          }
         );
         setEntries(response.leaderboard || []);
         setTotal(response.total || 0);

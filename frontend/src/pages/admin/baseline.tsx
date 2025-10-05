@@ -255,8 +255,8 @@ function BaselineManagementPage() {
                 画像を選択
               </label>
               <ImageUploader
-                onImageSelect={(file) => setUploadFile(file)}
-                onImageRemove={() => setUploadFile(null)}
+                onFileSelect={(file) => setUploadFile(file)}
+                previewUrl={uploadFile ? URL.createObjectURL(uploadFile) : undefined}
               />
             </div>
 

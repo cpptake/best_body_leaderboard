@@ -21,7 +21,7 @@ export default function Home() {
   useEffect(() => {
     const fetchTopFive = async () => {
       try {
-        const response = await leaderboardAPI.get(1, 5, 'all', undefined);
+        const response = await leaderboardAPI.getLeaderboard(1, 5);
         setTopFive(response.leaderboard || []);
       } catch (error) {
         console.error('Failed to fetch top 5:', error);
