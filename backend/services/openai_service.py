@@ -1,234 +1,165 @@
+import os
 import json
-import time
-from openai import OpenAI, OpenAIError, RateLimitError, APIConnectionError, APITimeoutError
-from flask import current_app
+import logging
+from openai import OpenAI
 
-class OpenAIService:
-    """OpenAI Vision API連携サービス"""
+# ロガーの設定
+logger = logging.getLogger(__name__)
 
-    def __init__(self):
-        self.client = None
+# OpenAIクライアントの初期化（タイムアウトを120秒に設定）
+client = OpenAI(
+    api_key=os.getenv('OPENAI_API_KEY'),
+    timeout=120.0,  # 画像解析は時間がかかるため、120秒に設定
+    max_retries=2   # リトライ回数
+)
 
-    def _get_client(self):
-        """OpenAIクライアントを取得（遅延初期化）"""
-        if not self.client:
-            api_key = current_app.config.get('OPENAI_API_KEY')
-            if not api_key:
-                raise ValueError('OPENAI_API_KEY is not configured')
-            self.client = OpenAI(api_key=api_key)
-        return self.client
 
-    def evaluate_physique(self, baseline_image_url, comparison_image_url, prompt, max_retries=3):
-        """
-        2枚の画像を比較してボディビルダーの肉体を評価
+def evaluate_bodybuilder_images(baseline_image_base64, comparison_image_base64):
+    """
+    2枚のボディビルダー画像を比較評価する
 
-        Args:
-            baseline_image_url: ベースライン画像のURL（基準画像）
-            comparison_image_url: 比較対象画像のURL
-            prompt: 評価用のプロンプト文字列
-            max_retries: リトライ回数（デフォルト: 3）
+    Args:
+        baseline_image_base64: ベースライン画像（Base64エンコード済み）
+        comparison_image_base64: 比較対象画像（Base64エンコード済み）
 
-        Returns:
-            dict: 評価結果
-            {
-                'shoulder_score': int,
-                'chest_score': int,
-                'arm_score': int,
-                'back_score': int,
-                'abs_score': int,
-                'total_score': int,
-                'comments': {
-                    'shoulder': str,
-                    'chest': str,
-                    'arm': str,
-                    'back': str,
-                    'abs': str
-                }
-            }
+    Returns:
+        dict: 評価結果（スコアとコメント）
+    """
 
-        Raises:
-            Exception: API呼び出しに失敗した場合
-        """
-        client = self._get_client()
+    # プロンプトの作成
+    prompt = """
+あなたはボディビルディングの専門家です。2枚の画像を比較し、以下の5つの部位について評価してください。
 
-        # メッセージを構築
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": prompt
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": baseline_image_url
-                        }
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": comparison_image_url
-                        }
-                    }
-                ]
-            }
-        ]
+【評価対象部位】
+1. 肩（shoulder）- 三角筋の発達
+2. 胸（chest）- 大胸筋の発達
+3. 腕（arm）- 上腕二頭筋・三頭筋の発達
+4. 背中（back）- 広背筋の発達
+5. 腹（abs）- 腹筋の発達
 
-        # リトライロジック
-        for attempt in range(max_retries):
-            try:
-                response = client.chat.completions.create(
-                    model="gpt-4o",  # または "gpt-4-vision-preview"
-                    messages=messages,
-                    max_tokens=1000,
-                    temperature=0.3,  # 一貫性のある評価のため低めに設定
-                )
+【評価基準】
+- 1枚目の画像（ベースライン）を基準として、2枚目の画像（比較対象）を相対評価してください
+- 各部位を-10〜+10点で評価してください
+  - +10: 比較対象が圧倒的に優れている
+  - +5: 比較対象が明らかに優れている
+  - 0: ほぼ同等
+  - -5: ベースラインが明らかに優れている
+  - -10: ベースラインが圧倒的に優れている
+- 各部位について、評価理由を簡潔に説明してください（1〜2文）
 
-                # レスポンスを取得
-                content = response.choices[0].message.content
-
-                # JSONとしてパース
-                result = self._parse_evaluation_response(content)
-
-                return result
-
-            except RateLimitError as e:
-                # レート制限エラー: リトライ
-                wait_time = 2 ** attempt  # 指数バックオフ
-                current_app.logger.warning(f'Rate limit hit. Retrying in {wait_time} seconds... (attempt {attempt + 1}/{max_retries})')
-                if attempt < max_retries - 1:
-                    time.sleep(wait_time)
-                else:
-                    raise Exception(f'Rate limit exceeded after {max_retries} retries')
-
-            except APIConnectionError as e:
-                # 接続エラー: リトライ
-                wait_time = 2 ** attempt
-                current_app.logger.warning(f'API connection error. Retrying in {wait_time} seconds... (attempt {attempt + 1}/{max_retries})')
-                if attempt < max_retries - 1:
-                    time.sleep(wait_time)
-                else:
-                    raise Exception(f'API connection failed after {max_retries} retries: {str(e)}')
-
-            except APITimeoutError as e:
-                # タイムアウトエラー: リトライ
-                wait_time = 2 ** attempt
-                current_app.logger.warning(f'API timeout. Retrying in {wait_time} seconds... (attempt {attempt + 1}/{max_retries})')
-                if attempt < max_retries - 1:
-                    time.sleep(wait_time)
-                else:
-                    raise Exception(f'API timeout after {max_retries} retries: {str(e)}')
-
-            except OpenAIError as e:
-                # その他のOpenAIエラー
-                raise Exception(f'OpenAI API error: {str(e)}')
-
-            except Exception as e:
-                # 予期しないエラー
-                raise Exception(f'Unexpected error during evaluation: {str(e)}')
-
-    def _parse_evaluation_response(self, content):
-        """
-        OpenAI APIのレスポンスをパース
-
-        Args:
-            content: APIレスポンスのテキスト
-
-        Returns:
-            dict: パースされた評価結果
-
-        Raises:
-            ValueError: パースに失敗した場合
-        """
-        try:
-            # JSON部分を抽出（マークダウンのコードブロック内にある場合）
-            if '```json' in content:
-                json_start = content.find('```json') + 7
-                json_end = content.find('```', json_start)
-                json_str = content[json_start:json_end].strip()
-            elif '```' in content:
-                json_start = content.find('```') + 3
-                json_end = content.find('```', json_start)
-                json_str = content[json_start:json_end].strip()
-            else:
-                json_str = content.strip()
-
-            # JSONをパース
-            data = json.loads(json_str)
-
-            # 必須フィールドの検証
-            required_fields = ['shoulder_score', 'chest_score', 'arm_score', 'back_score', 'abs_score']
-            for field in required_fields:
-                if field not in data:
-                    raise ValueError(f'Missing required field: {field}')
-
-            # スコアの範囲チェック（-10〜10）
-            for field in required_fields:
-                score = data[field]
-                if not isinstance(score, int) or score < -10 or score > 10:
-                    raise ValueError(f'Invalid score for {field}: {score}. Must be integer between -10 and 10')
-
-            # 合計スコアを計算
-            total_score = sum([data[field] for field in required_fields])
-            data['total_score'] = total_score
-
-            # コメントの検証（オプション）
-            if 'comments' not in data:
-                data['comments'] = {
-                    'shoulder': '',
-                    'chest': '',
-                    'arm': '',
-                    'back': '',
-                    'abs': ''
-                }
-
-            return data
-
-        except json.JSONDecodeError as e:
-            raise ValueError(f'Failed to parse JSON response: {str(e)}')
-        except Exception as e:
-            raise ValueError(f'Failed to parse evaluation response: {str(e)}')
-
-    def create_evaluation_prompt(self):
-        """
-        デフォルトの評価プロンプトを生成
-
-        Returns:
-            str: 評価用プロンプト
-        """
-        prompt = """あなたはボディビルダーの肉体評価の専門家です。
-2枚の画像を比較し、以下の5つの部位について評価してください：
-
-1. 肩（三角筋の発達度）
-2. 胸（大胸筋の発達度）
-3. 腕（上腕二頭筋・三頭筋の発達度）
-4. 背中（広背筋・僧帽筋の発達度）
-5. 腹（腹直筋の明瞭さ）
-
-1枚目の画像をベースライン（基準：0点）とし、2枚目の画像の各部位を相対的に評価してください。
-各部位を-10点（大きく劣る）から+10点（大きく優れる）のスケールで採点し、必ず以下のJSON形式で返してください：
-
+【出力形式】
+以下のJSON形式で回答してください：
+```json
 {
-  "shoulder_score": 数値（-10〜10の整数）,
-  "chest_score": 数値（-10〜10の整数）,
-  "arm_score": 数値（-10〜10の整数）,
-  "back_score": 数値（-10〜10の整数）,
-  "abs_score": 数値（-10〜10の整数）,
+  "shoulder_score": 5,
+  "chest_score": 3,
+  "arm_score": -2,
+  "back_score": 7,
+  "abs_score": 4,
+  "total_score": 17,
   "comments": {
-    "shoulder": "肩についての評価コメント",
-    "chest": "胸についての評価コメント",
-    "arm": "腕についての評価コメント",
-    "back": "背中についての評価コメント",
-    "abs": "腹についての評価コメント"
+    "shoulder": "三角筋の張り出しが顕著に優れています",
+    "chest": "大胸筋の厚みが若干上回っています",
+    "arm": "上腕の太さがやや劣ります",
+    "back": "広背筋の広がりが明らかに優位です",
+    "abs": "腹筋のカットがより鮮明です"
   }
 }
+```
 
-JSON形式のみを返し、他の説明文は含めないでください。"""
+注意: 必ずJSONのみを返してください。余計な説明は不要です。
+"""
 
-        return prompt
+    try:
+        logger.info("OpenAI Vision APIを呼び出し中...")
+        logger.debug(f"モデル: gpt-4o, max_tokens: 1000, temperature: 0")
 
+        # OpenAI Vision APIを呼び出し
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": prompt
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": baseline_image_base64
+                            }
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": comparison_image_base64
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=1000,
+            temperature=0
+        )
 
-# シングルトンインスタンス
-openai_service = OpenAIService()
+        logger.info("OpenAI APIからレスポンスを受信")
+
+        # レスポンスからJSONを抽出
+        content = response.choices[0].message.content
+        logger.debug(f"OpenAI Response Content: {content[:200]}...")  # 最初の200文字のみログ出力
+
+        # contentが空の場合のチェック
+        if not content or content.strip() == "":
+            logger.error("OpenAI APIのレスポンスが空です")
+            raise ValueError("OpenAI APIのレスポンスが空です")
+
+        # JSONブロックを抽出（```json ... ``` の形式を処理）
+        if "```json" in content:
+            logger.debug("JSONブロックを抽出中（```json形式）")
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            logger.debug("JSONブロックを抽出中（```形式）")
+            content = content.split("```")[1].split("```")[0].strip()
+
+        # JSONをパース
+        logger.info("レスポンスをJSONとしてパース中...")
+        result = json.loads(content)
+
+        # 必須フィールドの検証
+        logger.debug("必須フィールドを検証中...")
+        required_fields = ['shoulder_score', 'chest_score', 'arm_score', 'back_score', 'abs_score', 'total_score', 'comments']
+        for field in required_fields:
+            if field not in result:
+                logger.error(f"必須フィールド '{field}' が見つかりません")
+                raise ValueError(f"必須フィールド '{field}' が見つかりません")
+
+        # スコアの範囲チェック
+        logger.debug("スコアの範囲をチェック中...")
+        scores = [
+            result['shoulder_score'],
+            result['chest_score'],
+            result['arm_score'],
+            result['back_score'],
+            result['abs_score']
+        ]
+
+        for score in scores:
+            if not isinstance(score, (int, float)) or score < -10 or score > 10:
+                logger.error(f"スコアが範囲外です: {score}")
+                raise ValueError(f"スコアが範囲外です: {score}")
+
+        logger.info(f"評価完了 - 合計スコア: {result['total_score']}")
+        return result
+
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON解析エラー: {str(e)}")
+        logger.error(f"パース対象のコンテンツ: {content if 'content' in locals() else 'N/A'}")
+        raise ValueError(f"OpenAI APIのレスポンスをJSONとして解析できませんでした: {str(e)}")
+    except ValueError as e:
+        # ValueErrorは既にログ出力済みなのでそのまま再スロー
+        raise
+    except Exception as e:
+        logger.error(f"OpenAI API呼び出しエラー: {str(e)}", exc_info=True)
+        raise Exception(f"OpenAI APIの呼び出しに失敗しました: {str(e)}")

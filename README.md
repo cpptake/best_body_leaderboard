@@ -1,196 +1,199 @@
-# ボディビルダー肉体評価アプリケーション
+# ボディビルダー画像比較評価アプリ（最小構成版）
 
-OpenAI Vision APIを使用して、ボディビルダーの肉体を多角的に評価するWebアプリケーション。
+OpenAI Vision APIを使用して、2枚のボディビルダー画像を比較評価するシンプルなWebアプリケーションです。
+
+## 機能
+
+- 2枚の画像（ベースライン vs 比較対象）をアップロード
+- OpenAI Vision APIで5つの部位（肩・胸・腕・背中・腹）を自動評価
+- 各部位を-10〜+10点で相対評価
+- 総合スコア（-50〜+50点）を表示
+- 視覚的な評価結果の表示
 
 ## 技術スタック
 
-- **フロントエンド**: React / Next.js (TypeScript)
-- **バックエンド**: Flask (Python)
-- **リバースプロキシ**: Nginx
-- **データベース**: PostgreSQL
-- **画像ストレージ**: AWS S3
-- **AI API**: OpenAI Vision API (GPT-4 Vision)
-- **認証**: JWT (JSON Web Token)
+- **フロントエンド**: Next.js 14, React 18, Tailwind CSS
+- **バックエンド**: Flask (Python 3.11)
+- **AI**: OpenAI Vision API (GPT-4 Vision)
+- **コンテナ**: Docker, Docker Compose
 
 ## プロジェクト構造
 
 ```
-/project-root
-  /nginx              # Nginxの設定ファイル
-  /frontend           # Next.jsアプリケーション
-    /public
-    /src
-      /components     # UIコンポーネント
-      /pages          # ページコンポーネント
-      /api            # API呼び出しロジック
-      /utils          # ユーティリティ関数
-  /backend            # Flask API サーバー
-    /routes           # APIエンドポイント (Blueprint)
-    /controllers      # ビジネスロジック
-    /models           # データモデル (SQLAlchemy)
-    /services         # 外部サービス連携 (OpenAI, S3等)
-    /middleware       # 認証・エラーハンドリング等
-    /utils            # ユーティリティ関数
-    app.py            # Flaskアプリケーションエントリーポイント
-    requirements.txt  # Python依存パッケージ
-  /database           # DB関連
-    /migrations       # マイグレーションファイル
-    /seeds            # 初期データ
-    /schema.sql       # スキーマ定義
-  /docs               # ドキュメント
-  docker-compose.yml
-  .env.example
-  README.md
-  claude.md
+/
+├── backend/              # Flaskバックエンド
+│   ├── services/
+│   │   └── openai_service.py
+│   ├── utils/
+│   │   └── image_utils.py
+│   ├── app.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── frontend/             # Next.jsフロントエンド
+│   ├── src/
+│   │   ├── pages/
+│   │   │   ├── index.js
+│   │   │   └── _app.js
+│   │   ├── components/
+│   │   │   ├── ImageUploader.js
+│   │   │   └── EvaluationResult.js
+│   │   ├── lib/
+│   │   │   └── api.js
+│   │   └── styles/
+│   │       └── globals.css
+│   ├── package.json
+│   └── Dockerfile
+├── docker-compose.yml
+├── .env.example
+└── README.md
 ```
 
 ## セットアップ
 
-### 前提条件
+### 1. リポジトリのクローン
 
-- Python 3.11+
-- Node.js 18+
-- PostgreSQL 15+
-- AWS アカウント (S3使用)
-- OpenAI API キー
+```bash
+git clone <repository-url>
+cd best_body_leaderboard
+```
 
-### 環境変数の設定
+### 2. 環境変数の設定
 
-1. `.env.example` をコピーして `.env` を作成:
-   ```bash
-   cp .env.example .env
-   ```
+```bash
+# ルートディレクトリに.envファイルを作成
+cp .env.example .env
 
-2. `.env` ファイルを編集し、必要な環境変数を設定:
-   - `OPENAI_API_KEY`: OpenAI APIキー
-   - `DATABASE_URL`: PostgreSQL接続URL
-   - `AWS_S3_BUCKET`: S3バケット名
-   - `AWS_ACCESS_KEY_ID`: AWS認証情報
-   - `AWS_SECRET_ACCESS_KEY`: AWS認証情報
-   - `SECRET_KEY`: Flaskセッション用シークレットキー
-   - `JWT_SECRET_KEY`: JWT署名用シークレットキー
+# .envファイルを編集してOpenAI APIキーを設定
+# OPENAI_API_KEY=your-actual-api-key-here
+```
 
-### バックエンドのセットアップ
+### 3. Docker Composeで起動
+
+```bash
+docker-compose up --build
+```
+
+### 4. アクセス
+
+- **フロントエンド**: http://localhost:3000
+- **バックエンドAPI**: http://localhost:5000
+
+## ローカル開発（Dockerを使わない場合）
+
+### バックエンド
 
 ```bash
 cd backend
-
-# 仮想環境の作成
-python -m venv venv
-
-# 仮想環境の有効化
-source venv/bin/activate  # Linux/Mac
-# または
-venv\Scripts\activate  # Windows
-
-# 依存パッケージのインストール
 pip install -r requirements.txt
-
-# データベースマイグレーション
-flask db init
-flask db migrate -m "Initial migration"
-flask db upgrade
-
-# 開発サーバーの起動
-flask run
+python app.py
 ```
 
-### フロントエンドのセットアップ
+### フロントエンド
 
 ```bash
 cd frontend
-
-# 依存パッケージのインストール
 npm install
-
-# 開発サーバーの起動
 npm run dev
 ```
 
-フロントエンドは `http://localhost:3000` で起動します。
+## 使い方
 
-## 主要機能
+1. ブラウザで http://localhost:3000 を開く
+2. 「ベースライン画像」と「比較対象画像」をアップロード
+   - ドラッグ&ドロップまたはクリックして選択
+   - JPG, JPEG, PNG形式（最大10MB）
+3. 「評価を実行」ボタンをクリック
+4. 数秒後に評価結果が表示されます
+   - 各部位のスコアと評価コメント
+   - 総合スコア
+   - 2枚の画像の並列表示
 
-### 1. 画像評価
-- ベースライン画像と比較対象画像の2枚をアップロード
-- OpenAI Vision APIによる5部位の評価（肩・胸・腕・背中・腹）
-- 各部位を-10〜+10点で相対評価
-- 総合得点（-50〜+50点）を算出
+## API仕様
 
-### 2. 評価履歴
-- ユーザーごとの過去の評価結果を時系列で表示
-- 部位別得点とコメントの確認
-- 画像のサムネイル表示
+### POST /api/evaluate
 
-### 3. リーダーボード
-- 全ユーザーの最高得点をランキング表示
-- フィルタリング機能（期間指定、ベースライン画像別）
-- ページネーション対応
+2枚の画像を評価するエンドポイント
 
-### 4. ユーザー管理
-- ユーザー登録・ログイン・ログアウト
-- プロフィール編集
-- JWT認証
+**リクエスト:**
+```
+Content-Type: multipart/form-data
 
-### 5. ベースライン画像管理（管理者機能）
-- ベースライン画像の登録・変更（管理者のみ）
-- 複数のベースライン画像管理
-- アクティブなベースライン画像の切り替え
-
-## API エンドポイント
-
-### 認証
-- `POST /api/auth/register` - ユーザー登録
-- `POST /api/auth/login` - ログイン
-- `POST /api/auth/logout` - ログアウト
-
-### 画像評価
-- `POST /api/evaluate` - 画像評価実行
-- `GET /api/evaluations` - 評価履歴取得
-- `GET /api/evaluations/:id` - 特定評価の詳細取得
-
-### リーダーボード
-- `GET /api/leaderboard` - ランキング取得
-
-### ベースライン画像
-- `GET /api/baseline-images` - ベースライン画像一覧
-- `GET /api/baseline-images/active` - アクティブなベースライン画像
-- `POST /api/baseline-images` - ベースライン画像登録（管理者のみ）
-- `PUT /api/baseline-images/:id` - ベースライン画像更新（管理者のみ）
-
-### ユーザー
-- `GET /api/users/me` - プロフィール取得
-- `PUT /api/users/me` - プロフィール更新
-
-## セキュリティ
-
-- パスワードは bcrypt でハッシュ化
-- JWT トークンで API 認証
-- 画像アップロード時のファイルサイズ・形式バリデーション
-- CORS 設定
-- SQL injection 対策（SQLAlchemy ORM使用）
-- 管理者権限チェック
-
-## テスト
-
-```bash
-# バックエンドのテスト
-cd backend
-pytest
-
-# フロントエンドのテスト
-cd frontend
-npm test
+baseline_image: File
+comparison_image: File
 ```
 
-## デプロイ
+**レスポンス例:**
+```json
+{
+  "success": true,
+  "data": {
+    "shoulder_score": 5,
+    "chest_score": 3,
+    "arm_score": -2,
+    "back_score": 7,
+    "abs_score": 4,
+    "total_score": 17,
+    "comments": {
+      "shoulder": "三角筋の張り出しが顕著に優れています",
+      "chest": "大胸筋の厚みが若干上回っています",
+      "arm": "上腕の太さがやや劣ります",
+      "back": "広背筋の広がりが明らかに優位です",
+      "abs": "腹筋のカットがより鮮明です"
+    },
+    "baseline_image_url": "data:image/jpeg;base64,...",
+    "comparison_image_url": "data:image/jpeg;base64,..."
+  }
+}
+```
 
-詳細は `docs/deployment.md` を参照してください。
+## 環境変数
+
+### バックエンド
+- `FLASK_ENV`: 開発環境（development / production）
+- `OPENAI_API_KEY`: OpenAI APIキー（必須）
+- `CORS_ORIGINS`: 許可するCORSオリジン
+- `PORT`: サーバーポート（デフォルト: 5000）
+
+### フロントエンド
+- `NEXT_PUBLIC_API_URL`: バックエンドAPIのURL
+
+## 注意事項
+
+- OpenAI APIキーが必要です
+- 画像はメモリ上で処理され、保存されません
+- データベース機能はありません（将来の拡張予定）
+- 評価履歴は保存されません
+
+## トラブルシューティング
+
+### Dockerコンテナが起動しない
+```bash
+# コンテナとイメージを削除して再ビルド
+docker-compose down
+docker-compose up --build
+```
+
+### OpenAI APIエラー
+- `.env`ファイルにAPIキーが正しく設定されているか確認
+- APIキーの有効性を確認
+- OpenAIのレート制限に達していないか確認
+
+### フロントエンドがバックエンドに接続できない
+- バックエンドが起動しているか確認: http://localhost:5000/health
+- `.env`ファイルのURLが正しいか確認
+
+## 今後の拡張予定
+
+- データベース（PostgreSQL）の導入
+- ユーザー認証機能
+- 評価履歴の保存
+- リーダーボード機能
+- ベースライン画像の管理機能
 
 ## ライセンス
 
 MIT
 
-## 開発者
+## 詳細仕様
 
-[Your Name]
+詳細な仕様については `claude.md` を参照してください。
