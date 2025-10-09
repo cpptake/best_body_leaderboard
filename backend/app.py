@@ -272,19 +272,39 @@ def leaderboard():
 
         logger.info(f"ページ: {page}, 1ページあたり: {per_page}件")
 
-        # ユーザーごとの最高得点を集計するサブクエリ
-        subquery = db.session.query(
+        # ユーザーごとの最高得点のレコードを取得
+        # 各ユーザーの最大total_scoreを持つ評価を取得（同点の場合は最新の評価日時を優先）
+
+        # ステップ1: 各ユーザーの最高得点を取得
+        max_scores_subquery = db.session.query(
             Evaluation.username,
-            func.max(Evaluation.total_score).label('best_score'),
-            func.max(Evaluation.evaluated_at).label('latest_evaluation')
+            func.max(Evaluation.total_score).label('max_score')
         ).group_by(Evaluation.username).subquery()
 
-        # リーダーボードデータを取得
+        # ステップ2: 最高得点を持つ評価レコードを取得
+        # 同じスコアが複数ある場合は、最も新しい評価日時のものを取得
+        best_evaluations_subquery = db.session.query(
+            Evaluation.username,
+            Evaluation.total_score,
+            func.max(Evaluation.evaluated_at).label('evaluated_at')
+        ).join(
+            max_scores_subquery,
+            (Evaluation.username == max_scores_subquery.c.username) &
+            (Evaluation.total_score == max_scores_subquery.c.max_score)
+        ).group_by(
+            Evaluation.username,
+            Evaluation.total_score
+        ).subquery()
+
+        # ステップ3: リーダーボードクエリを作成（スコア順にソート）
         leaderboard_query = db.session.query(
-            subquery.c.username,
-            subquery.c.best_score,
-            subquery.c.latest_evaluation
-        ).order_by(desc(subquery.c.best_score), subquery.c.username)
+            best_evaluations_subquery.c.username,
+            best_evaluations_subquery.c.total_score.label('best_score'),
+            best_evaluations_subquery.c.evaluated_at.label('latest_evaluation')
+        ).order_by(
+            desc(best_evaluations_subquery.c.total_score),
+            best_evaluations_subquery.c.username
+        )
 
         # 総件数の取得
         total_count = leaderboard_query.count()
