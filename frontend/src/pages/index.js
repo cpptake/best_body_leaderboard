@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import ImageUploader from '../components/ImageUploader';
 import EvaluationResult from '../components/EvaluationResult';
+import UsernameInput from '../components/UsernameInput';
 import { evaluateImages } from '../lib/api';
 
 export default function Home() {
+  const [username, setUsername] = useState('');
   const [baselineImage, setBaselineImage] = useState(null);
   const [comparisonImage, setComparisonImage] = useState(null);
   const [evaluationResult, setEvaluationResult] = useState(null);
@@ -14,6 +17,11 @@ export default function Home() {
   // 評価を実行
   const handleEvaluate = async () => {
     // バリデーション
+    if (!username || username.trim() === '') {
+      alert('ユーザー名を入力してください');
+      return;
+    }
+
     if (!baselineImage || !comparisonImage) {
       alert('2枚の画像を選択してください');
       return;
@@ -24,8 +32,8 @@ export default function Home() {
     setEvaluationResult(null);
 
     try {
-      // APIを呼び出し
-      const result = await evaluateImages(baselineImage, comparisonImage);
+      // APIを呼び出し（ユーザー名を含む）
+      const result = await evaluateImages(baselineImage, comparisonImage, username);
 
       if (result.success) {
         setEvaluationResult(result);
@@ -41,6 +49,7 @@ export default function Home() {
 
   // リセット
   const handleReset = () => {
+    setUsername('');
     setBaselineImage(null);
     setComparisonImage(null);
     setEvaluationResult(null);
@@ -65,6 +74,13 @@ export default function Home() {
             <p className="text-gray-600">
               OpenAI Vision APIを使用して2枚の画像を比較評価します
             </p>
+            <div className="mt-4">
+              <Link href="/leaderboard">
+                <span className="inline-block px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors cursor-pointer">
+                  🏆 リーダーボードを見る
+                </span>
+              </Link>
+            </div>
           </div>
 
           {/* エラー表示 */}
@@ -77,6 +93,12 @@ export default function Home() {
           {/* 評価結果がない場合: 画像アップロードエリア */}
           {!evaluationResult && (
             <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
+              {/* ユーザー名入力 */}
+              <UsernameInput
+                username={username}
+                onUsernameChange={setUsername}
+              />
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                 <ImageUploader
                   label="ベースライン画像（基準）"
@@ -95,11 +117,11 @@ export default function Home() {
               <div className="text-center">
                 <button
                   onClick={handleEvaluate}
-                  disabled={!baselineImage || !comparisonImage || isLoading}
+                  disabled={!username || !baselineImage || !comparisonImage || isLoading}
                   className={`
                     px-8 py-4 rounded-lg font-semibold text-white text-lg
                     transition-all duration-200
-                    ${!baselineImage || !comparisonImage || isLoading
+                    ${!username || !baselineImage || !comparisonImage || isLoading
                       ? 'bg-gray-400 cursor-not-allowed'
                       : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}
                   `}

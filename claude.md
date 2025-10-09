@@ -1,22 +1,26 @@
-# ボディビルダー画像比較評価アプリ（最小構成版）
+# ボディビルダー画像比較評価アプリ（リーダーボード機能追加版）
 
 ## プロジェクト概要
-OpenAI Vision APIを使用して、2枚のボディビルダー画像を比較評価する**シンプルな**Webアプリケーション。
+OpenAI Vision APIを使用して、2枚のボディビルダー画像を比較評価するWebアプリケーション。
 ベースライン画像（基準）と比較対象画像を入力し、5つの部位（肩・胸・腕・背中・腹）について相対評価を行い、総合得点を表示する。
 
-**重要: このバージョンはMVP（最小機能製品）であり、以下の機能は含まれません：**
-- ユーザー登録・ログイン機能
-- データベース（後で追加予定）
-- 評価履歴の保存
-- リーダーボード
-- ベースライン画像の管理機能
+**新機能: リーダーボード（得点表）**
+- ユーザー名を入力して評価を記録
+- 各ユーザーの最高得点をランキング表示
+- ページネーション対応
+
+**注意: 本格的な認証機能は未実装**
+- 現状はユーザー名を入力するだけ（簡易版）
+- 将来的にユーザー登録・ログイン機能を追加予定
 
 ## 技術スタック
 - **フロントエンド**: React / Next.js
 - **バックエンド**: Flask (Python)
+- **データベース**: PostgreSQL（Dockerコンテナ）
 - **AI API**: OpenAI Vision API (GPT-4 Vision)
 - **コンテナ**: Docker / Docker Compose
 - **画像処理**: Pillow (Python)
+- **ORM**: SQLAlchemy (Python)
 
 ## プロジェクト構造
 ```
@@ -24,22 +28,28 @@ OpenAI Vision APIを使用して、2枚のボディビルダー画像を比較�
   /frontend           # Next.jsアプリケーション
     /public
     /src
-      /pages          # ページコンポーネント
+      /pages
         index.js      # メインページ（画像アップロード&評価表示）
-      /components     # UIコンポーネント
+        leaderboard.js # リーダーボードページ
+      /components
         ImageUploader.js
         EvaluationResult.js
+        LeaderboardTable.js  # NEW
+        UsernameInput.js     # NEW
       /lib
         api.js        # API通信
     package.json
     next.config.js
     tailwind.config.js
   /backend            # Flask API サーバー
+    /models           # NEW
+      evaluation.py   # 評価モデル
     /services
-      openai_service.py  # OpenAI API連携
+      openai_service.py
     /utils
-      image_utils.py     # 画像処理
-    app.py               # Flaskアプリエントリーポイント
+      image_utils.py
+    app.py
+    config.py         # NEW
     requirements.txt
   docker-compose.yml
   .env.example
@@ -47,37 +57,68 @@ OpenAI Vision APIを使用して、2枚のボディビルダー画像を比較�
   claude.md
 ```
 
-## コア機能（実装必須）
+## コア機能
 
-### 1. 画像アップロード
-- ベースライン画像（基準となる画像）のアップロード
-- 比較対象画像のアップロード
-- 画像プレビュー表示
-- ファイルバリデーション（JPG/PNG、最大10MB）
+### 1. 画像アップロードと評価（既存）
+- ベースライン画像と比較対象画像のアップロード
+- **ユーザー名の入力（NEW）**
+- OpenAI Vision APIによる評価
+- 評価結果の表示
 
-### 2. OpenAI Vision APIによる評価
-- 2枚の画像をOpenAI Vision APIに送信
-- 5つの部位（肩・胸・腕・背中・腹）をそれぞれ-10〜+10点で評価
-- 各部位の評価理由をテキストで取得
-- 合計得点（-50〜+50点）を算出
+### 2. 評価結果の保存（NEW）
+- ユーザー名と評価スコアをデータベースに保存
+- 各部位のスコアとコメントを保存
+- 評価日時を記録
 
-### 3. 評価結果の表示
-- 各部位のスコアを視覚的に表示（プログレスバーまたはゲージ）
-- 各部位の評価コメント表示
-- 合計スコアを大きく表示
-- 評価対象の2枚の画像を並べて表示
+### 3. リーダーボード（NEW）
+- 各ユーザーの最高得点をランキング表示
+- ページネーション対応（20件ずつ表示）
+- 順位、ユーザー名、最高得点、評価日時を表示
 
-## API設計（最小構成）
+## データベース設計
 
-### バックエンドエンドポイント
+### evaluationsテーブル
+評価結果を保存するテーブル
+
+```sql
+CREATE TABLE evaluations (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) NOT NULL,
+    shoulder_score INTEGER NOT NULL CHECK (shoulder_score >= -10 AND shoulder_score <= 10),
+    chest_score INTEGER NOT NULL CHECK (chest_score >= -10 AND chest_score <= 10),
+    arm_score INTEGER NOT NULL CHECK (arm_score >= -10 AND arm_score <= 10),
+    back_score INTEGER NOT NULL CHECK (back_score >= -10 AND back_score <= 10),
+    abs_score INTEGER NOT NULL CHECK (abs_score >= -10 AND abs_score <= 10),
+    total_score INTEGER NOT NULL CHECK (total_score >= -50 AND total_score <= 50),
+    shoulder_comment TEXT,
+    chest_comment TEXT,
+    arm_comment TEXT,
+    back_comment TEXT,
+    abs_comment TEXT,
+    evaluated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_username (username),
+    INDEX idx_total_score (total_score DESC),
+    INDEX idx_evaluated_at (evaluated_at DESC)
+);
+```
+
+**インデックス:**
+- `username`: ユーザー別の検索用
+- `total_score`: ランキング表示用（降順）
+- `evaluated_at`: 日時順ソート用
+
+## API設計
+
+### 既存エンドポイント（更新）
 
 #### POST /api/evaluate
-2枚の画像を評価するエンドポイント
+2枚の画像を評価し、結果をDBに保存
 
 **リクエスト:**
 ```
 Content-Type: multipart/form-data
 
+username: String (ユーザー名、必須) # NEW
 baseline_image: File (画像ファイル)
 comparison_image: File (画像ファイル)
 ```
@@ -87,6 +128,8 @@ comparison_image: File (画像ファイル)
 {
   "success": true,
   "data": {
+    "evaluation_id": 123,  # NEW
+    "username": "user123", # NEW
     "shoulder_score": 5,
     "chest_score": 3,
     "arm_score": -2,
@@ -101,68 +144,100 @@ comparison_image: File (画像ファイル)
       "abs": "腹筋のカットがより鮮明です"
     },
     "baseline_image_url": "data:image/jpeg;base64,...",
-    "comparison_image_url": "data:image/jpeg;base64,..."
+    "comparison_image_url": "data:image/jpeg;base64,...",
+    "evaluated_at": "2025-10-08T12:34:56Z" # NEW
   }
 }
 ```
 
-**エラーレスポンス:**
+### 新規エンドポイント
+
+#### GET /api/leaderboard
+リーダーボードを取得
+
+**クエリパラメータ:**
+- `page`: ページ番号（デフォルト: 1）
+- `per_page`: 1ページあたりの件数（デフォルト: 20、最大: 100）
+
+**レスポンス:**
 ```json
 {
-  "success": false,
-  "error": "エラーメッセージ"
-}
-```
-
-## OpenAI Vision API連携
-
-### プロンプト設計
-**注意: プロンプトは別途用意されているため、ここでは詳細を記載しない。**
-外部から渡されるプロンプトを使用する想定。
-
-### 想定レスポンス形式
-```json
-{
-  "shoulder_score": 5,
-  "chest_score": 3,
-  "arm_score": -2,
-  "back_score": 7,
-  "abs_score": 4,
-  "total_score": 17,
-  "comments": {
-    "shoulder": "評価コメント",
-    "chest": "評価コメント",
-    "arm": "評価コメント",
-    "back": "評価コメント",
-    "abs": "評価コメント"
+  "success": true,
+  "data": {
+    "leaderboard": [
+      {
+        "rank": 1,
+        "username": "muscle_king",
+        "best_score": 45,
+        "evaluated_at": "2025-10-08T12:34:56Z"
+      },
+      {
+        "rank": 2,
+        "username": "bodybuilder_pro",
+        "best_score": 42,
+        "evaluated_at": "2025-10-07T10:20:30Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "per_page": 20,
+      "total_pages": 5,
+      "total_count": 100
+    }
   }
 }
 ```
 
-各部位: -10〜+10点、合計: -50〜+50点
+#### GET /api/leaderboard/user/{username}
+特定ユーザーの評価履歴を取得
+
+**レスポンス:**
+```json
+{
+  "success": true,
+  "data": {
+    "username": "user123",
+    "best_score": 35,
+    "evaluation_count": 5,
+    "evaluations": [
+      {
+        "id": 123,
+        "total_score": 35,
+        "evaluated_at": "2025-10-08T12:34:56Z"
+      }
+    ]
+  }
+}
+```
 
 ## 実装の優先順位
 
-### フェーズ1: バックエンドの基本実装
-1. Flask基本構造のセットアップ
-2. OpenAI Vision API連携サービスの実装
-3. 画像処理ユーティリティの実装（Base64エンコード、バリデーション）
-4. /api/evaluateエンドポイントの実装
-5. CORS設定
+### フェーズ4: データベース導入（NEW）
+1. PostgreSQLコンテナの追加（docker-compose.yml）
+2. SQLAlchemyのセットアップ
+3. evaluationsモデルの作成
+4. データベースマイグレーション（初期テーブル作成）
 
-### フェーズ2: フロントエンドの実装
-1. Next.js基本構造のセットアップ
-2. ImageUploaderコンポーネント（ドラッグ&ドロップ、プレビュー）
-3. EvaluationResultコンポーネント（スコア表示、コメント表示）
-4. メインページ（index.js）の実装
-5. API通信の実装
+### フェーズ5: 評価保存機能の実装（NEW）
+1. POST /api/evaluateエンドポイントの更新
+   - ユーザー名を受け取る
+   - 評価結果をDBに保存
+   - evaluation_idを返す
+2. エラーハンドリング（DB接続エラー等）
 
-### フェーズ3: 統合とDocker化
-1. フロントエンドとバックエンドの統合テスト
-2. Dockerfileの作成（frontend, backend）
-3. docker-compose.ymlの作成
-4. 環境変数の設定
-5. 動作確認
+### フェーズ6: リーダーボード機能の実装（NEW）
+1. GET /api/leaderboardエンドポイントの実装
+   - ユーザーごとの最高得点を集計
+   - ページネーション対応
+2. GET /api/leaderboard/user/{username}の実装
+3. SQLクエリの最適化
+
+### フェーズ7: フロントエンドの更新（NEW）
+1. UsernameInputコンポーネントの作成
+2. index.jsにユーザー名入力フィールドを追加
+3. leaderboard.jsページの作成
+4. LeaderboardTableコンポーネントの作成
+5. ページネーション機能の実装
 
 ## 環境変数
 
@@ -171,6 +246,7 @@ comparison_image: File (画像ファイル)
 FLASK_ENV=development
 OPENAI_API_KEY=your_openai_api_key_here
 CORS_ORIGINS=http://localhost:3000
+DATABASE_URL=postgresql://bodybuilder:password@db:5432/bodybuilder_db  # NEW
 ```
 
 ### フロントエンド (.env.local)
@@ -178,23 +254,12 @@ CORS_ORIGINS=http://localhost:3000
 NEXT_PUBLIC_API_URL=http://localhost:5000
 ```
 
-## 開発ルール
-
-### コーディング規約
-- シンプルさを最優先（複雑な実装は避ける）
-- エラーハンドリングは必須
-- コメントは日本語でOK
-- 環境変数は`.env.example`で管理
-
-### セキュリティ
-- 画像ファイルのバリデーション（サイズ、形式）
-- CORS設定を適切に行う
-- APIキーの安全な管理
-
-### パフォーマンス
-- 画像はBase64でメモリ上で処理（DBやS3は使わない）
-- 適切な画像リサイズ（最大1920x1920推奨）
-- OpenAI APIのタイムアウト設定
+### データベース (docker-compose.yml内で設定)
+```
+POSTGRES_USER=bodybuilder
+POSTGRES_PASSWORD=password
+POSTGRES_DB=bodybuilder_db
+```
 
 ## Python / Flask関連パッケージ（requirements.txt）
 
@@ -204,52 +269,34 @@ flask-cors==4.0.0
 Pillow==10.1.0
 openai==1.3.0
 python-dotenv==1.0.0
+# NEW
+SQLAlchemy==2.0.23
+psycopg2-binary==2.9.9
+Flask-SQLAlchemy==3.1.1
 ```
 
-## フロントエンド関連パッケージ（package.json）
-
-```json
-{
-  "dependencies": {
-    "next": "14.0.0",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "axios": "1.6.0"
-  },
-  "devDependencies": {
-    "tailwindcss": "3.3.0",
-    "autoprefixer": "10.4.16",
-    "postcss": "8.4.31"
-  }
-}
-```
-
-## Docker構成
-
-### backend/Dockerfile
-```dockerfile
-FROM python:3.11-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-CMD ["python", "app.py"]
-```
-
-### frontend/Dockerfile
-```dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json .
-RUN npm install
-COPY . .
-CMD ["npm", "run", "dev"]
-```
+## Docker構成（更新）
 
 ### docker-compose.yml
 ```yaml
 version: '3.8'
 services:
+  db:  # NEW
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: bodybuilder
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: bodybuilder_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bodybuilder"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   backend:
     build: ./backend
     ports:
@@ -258,6 +305,9 @@ services:
       - ./backend/.env
     volumes:
       - ./backend:/app
+    depends_on:
+      db:  # NEW
+        condition: service_healthy
 
   frontend:
     build: ./frontend
@@ -270,95 +320,154 @@ services:
       - /app/node_modules
     depends_on:
       - backend
+
+volumes:
+  postgres_data:  # NEW
 ```
 
-## データベースについて
+## データベース初期化
 
-**現バージョンではデータベースは実装しません。**
+### backend/models/evaluation.py
+```python
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
 
-将来的に以下の機能を追加する場合にDBを導入：
-- ユーザー認証
-- 評価履歴の保存
-- リーダーボード
-- ベースライン画像の管理
+db = SQLAlchemy()
+
+class Evaluation(db.Model):
+    __tablename__ = 'evaluations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), nullable=False, index=True)
+    shoulder_score = db.Column(db.Integer, nullable=False)
+    chest_score = db.Column(db.Integer, nullable=False)
+    arm_score = db.Column(db.Integer, nullable=False)
+    back_score = db.Column(db.Integer, nullable=False)
+    abs_score = db.Column(db.Integer, nullable=False)
+    total_score = db.Column(db.Integer, nullable=False, index=True)
+    shoulder_comment = db.Column(db.Text)
+    chest_comment = db.Column(db.Text)
+    arm_comment = db.Column(db.Text)
+    back_comment = db.Column(db.Text)
+    abs_comment = db.Column(db.Text)
+    evaluated_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'username': self.username,
+            'shoulder_score': self.shoulder_score,
+            'chest_score': self.chest_score,
+            'arm_score': self.arm_score,
+            'back_score': self.back_score,
+            'abs_score': self.abs_score,
+            'total_score': self.total_score,
+            'comments': {
+                'shoulder': self.shoulder_comment,
+                'chest': self.chest_comment,
+                'arm': self.arm_comment,
+                'back': self.back_comment,
+                'abs': self.abs_comment
+            },
+            'evaluated_at': self.evaluated_at.isoformat()
+        }
+```
+
+### アプリ起動時にテーブル自動作成
+```python
+# backend/app.py内
+from models.evaluation import db, Evaluation
+
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db.init_app(app)
+
+with app.app_context():
+    db.create_all()  # テーブルを自動作成
+```
 
 ## 実装上の注意点
 
-1. **シンプルさを保つ**
-   - 機能を追加したい衝動に駆られても、まずはコア機能のみを完成させる
-   - 必要最小限のコードで実装
+1. **データベース接続**
+   - PostgreSQLコンテナの起動を待つ（healthcheck使用）
+   - 接続エラー時の適切なエラーハンドリング
+   - connection poolingの設定
 
-2. **画像処理**
-   - 画像はメモリ上で処理（ファイル保存不要）
-   - Base64エンコードでフロントエンドに返却
-   - 大きすぎる画像は自動リサイズ
+2. **ユーザー名のバリデーション**
+   - 1〜50文字
+   - 英数字、アンダースコア、ハイフンのみ許可
+   - 空白文字の除去
 
-3. **エラーハンドリング**
-   - OpenAI APIのエラー（レート制限、認証エラー等）
-   - 画像形式・サイズのバリデーションエラー
-   - ネットワークエラー
+3. **リーダーボードのクエリ最適化**
+   - サブクエリでユーザーごとの最高得点を取得
+   - インデックスを活用
+   - ページネーション実装
 
 4. **UI/UX**
-   - ローディング状態を明確に表示
-   - エラーメッセージをユーザーフレンドリーに
-   - レスポンシブデザイン対応
+   - ユーザー名入力欄を目立たせる
+   - リーダーボードのトップ3を特別表示（金銀銅）
+   - 自分の順位をハイライト表示（将来の認証機能実装時）
 
 ## テスト方法
 
 ### ローカル開発環境での起動
 
-1. バックエンド起動:
 ```bash
-cd backend
-pip install -r requirements.txt
-python app.py
-```
-
-2. フロントエンド起動:
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-3. ブラウザで http://localhost:3000 にアクセス
-
-### Docker環境での起動
-
-```bash
+# Docker Composeで全サービス起動
 docker-compose up --build
+
+# ブラウザでアクセス
+# メインページ: http://localhost:3000
+# リーダーボード: http://localhost:3000/leaderboard
+```
+
+### データベース確認
+
+```bash
+# PostgreSQLコンテナに接続
+docker exec -it <container_id> psql -U bodybuilder -d bodybuilder_db
+
+# テーブル確認
+\dt
+
+# データ確認
+SELECT * FROM evaluations ORDER BY total_score DESC LIMIT 10;
 ```
 
 ### 動作確認
 
-1. 2枚の画像をアップロード
-2. 「評価を実行」ボタンをクリック
-3. 数秒後に評価結果が表示されることを確認
+1. ユーザー名を入力
+2. 2枚の画像をアップロード
+3. 評価を実行
+4. 結果が表示され、DBに保存されることを確認
+5. リーダーボードページで結果を確認
 
-## 今後の拡張予定（参考）
+## 今後の拡張予定
 
-このMVPが完成した後、以下の機能を段階的に追加可能：
-1. データベースの導入（PostgreSQL）
-2. ユーザー認証機能
-3. 評価履歴の保存・表示
-4. リーダーボード機能
-5. AWS S3への画像保存
-6. ベースライン画像の管理機能
+1. ユーザー登録・ログイン機能の実装
+2. パスワード認証の追加
+3. 評価履歴の詳細表示
+4. ユーザープロフィールページ
+5. 画像のAWS S3保存
+6. 管理者機能（ベースライン画像管理）
 
 ## 決定事項まとめ
 
-✅ **最小構成の方針:**
-- データベースなし
-- 認証なし
-- 画像比較と評価表示のみ
-- メモリ上で画像処理（保存なし）
+✅ **新機能:**
+- リーダーボード（得点表）
+- ユーザー名入力（簡易版）
+- PostgreSQLでのデータ永続化
 
-✅ **技術スタック:**
-- Flask (バックエンド)
-- Next.js (フロントエンド)
-- OpenAI Vision API
-- Docker / Docker Compose
+✅ **技術スタック（追加）:**
+- PostgreSQL（Dockerコンテナ）
+- SQLAlchemy（ORM）
 
-✅ **スコア範囲:**
-- 各部位: -10〜+10点
-- 合計: -50〜+50点
+✅ **データ設計:**
+- evaluationsテーブル（評価結果保存）
+- ユーザーごとの最高得点を集計
+
+✅ **注意事項:**
+- 本格的な認証機能は未実装（将来追加予定）
+- DBはDockerコンテナで起動
+- データは永続化される（volumeマウント）

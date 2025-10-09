@@ -1,6 +1,24 @@
 version: '3.8'
 
 services:
+  db:
+    image: postgres:15-alpine
+    container_name: bodybuilder-db
+    environment:
+      POSTGRES_USER: bodybuilder
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: bodybuilder_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bodybuilder"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   backend:
     build: ./backend
     container_name: bodybuilder-backend
@@ -11,9 +29,13 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - CORS_ORIGINS=http://localhost:3000
       - PORT=5000
+      - DATABASE_URL=postgresql://bodybuilder:password@db:5432/bodybuilder_db
     volumes:
       - ./backend:/app
       - /app/__pycache__
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -30,3 +52,6 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+volumes:
+  postgres_data:
