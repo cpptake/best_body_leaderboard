@@ -69,8 +69,7 @@ def evaluate_bodybuilder_images(baseline_image_base64, comparison_image_base64):
   "chest_score": 3,
   "arm_score": -2,
   "back_score": -1,
-  "abs_score": -8,
-  "total_score": 2,
+  "abs_score": -8
 }
 
 # 注意点
@@ -138,7 +137,7 @@ def evaluate_bodybuilder_images(baseline_image_base64, comparison_image_base64):
 
         # 必須フィールドの検証
         logger.debug("必須フィールドを検証中...")
-        required_fields = ['shoulder_score', 'chest_score', 'arm_score', 'back_score', 'abs_score', 'total_score', 'comments']
+        required_fields = ['shoulder_score', 'chest_score', 'arm_score', 'back_score', 'abs_score', 'comments']
         for field in required_fields:
             if field not in result:
                 logger.error(f"必須フィールド '{field}' が見つかりません")
@@ -159,6 +158,8 @@ def evaluate_bodybuilder_images(baseline_image_base64, comparison_image_base64):
                 logger.error(f"スコアが範囲外です: {score}")
                 raise ValueError(f"スコアが範囲外です: {score}")
 
+        # total_scoreを計算して追加
+        result['total_score'] = sum(scores)
         logger.info(f"評価完了 - 合計スコア: {result['total_score']}")
         return result
 

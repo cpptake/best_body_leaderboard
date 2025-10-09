@@ -1,5 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from sqlalchemy.ext.hybrid import hybrid_property
 
 db = SQLAlchemy()
 
@@ -13,13 +14,24 @@ class Evaluation(db.Model):
     arm_score = db.Column(db.Integer, nullable=False)
     back_score = db.Column(db.Integer, nullable=False)
     abs_score = db.Column(db.Integer, nullable=False)
-    total_score = db.Column(db.Integer, nullable=False, index=True)
     shoulder_comment = db.Column(db.Text)
     chest_comment = db.Column(db.Text)
     arm_comment = db.Column(db.Text)
     back_comment = db.Column(db.Text)
     abs_comment = db.Column(db.Text)
     evaluated_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    @hybrid_property
+    def total_score(self):
+        """5つの部位のスコアの合計を計算"""
+        return (self.shoulder_score + self.chest_score +
+                self.arm_score + self.back_score + self.abs_score)
+
+    @total_score.expression
+    def total_score(cls):
+        """SQLクエリで使用できるtotal_scoreの式"""
+        return (cls.shoulder_score + cls.chest_score +
+                cls.arm_score + cls.back_score + cls.abs_score)
 
     def to_dict(self):
         return {

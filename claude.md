@@ -89,7 +89,6 @@ CREATE TABLE evaluations (
     arm_score INTEGER NOT NULL CHECK (arm_score >= -10 AND arm_score <= 10),
     back_score INTEGER NOT NULL CHECK (back_score >= -10 AND back_score <= 10),
     abs_score INTEGER NOT NULL CHECK (abs_score >= -10 AND abs_score <= 10),
-    total_score INTEGER NOT NULL CHECK (total_score >= -50 AND total_score <= 50),
     shoulder_comment TEXT,
     chest_comment TEXT,
     arm_comment TEXT,
@@ -97,15 +96,17 @@ CREATE TABLE evaluations (
     abs_comment TEXT,
     evaluated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_username (username),
-    INDEX idx_total_score (total_score DESC),
     INDEX idx_evaluated_at (evaluated_at DESC)
 );
 ```
 
+**注:** `total_score`は物理カラムではなく、5つの部位スコアの合計値として計算プロパティ（hybrid_property）で実装されています。
+
 **インデックス:**
 - `username`: ユーザー別の検索用
-- `total_score`: ランキング表示用（降順）
 - `evaluated_at`: 日時順ソート用
+
+**注:** `total_score`はhybrid_propertyとして実装されているため、SQLクエリでも使用可能です（インデックスは不要）。
 
 ## API設計
 
@@ -135,7 +136,7 @@ comparison_image: File (画像ファイル)
     "arm_score": -2,
     "back_score": 7,
     "abs_score": 4,
-    "total_score": 17,
+    "total_score": 17,  # 5つの部位スコアの合計（サーバー側で自動計算）
     "comments": {
       "shoulder": "三角筋の張り出しが顕著に優れています",
       "chest": "大胸筋の厚みが若干上回っています",
@@ -336,7 +337,7 @@ db = SQLAlchemy()
 
 class Evaluation(db.Model):
     __tablename__ = 'evaluations'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), nullable=False, index=True)
     shoulder_score = db.Column(db.Integer, nullable=False)
@@ -344,13 +345,24 @@ class Evaluation(db.Model):
     arm_score = db.Column(db.Integer, nullable=False)
     back_score = db.Column(db.Integer, nullable=False)
     abs_score = db.Column(db.Integer, nullable=False)
-    total_score = db.Column(db.Integer, nullable=False, index=True)
     shoulder_comment = db.Column(db.Text)
     chest_comment = db.Column(db.Text)
     arm_comment = db.Column(db.Text)
     back_comment = db.Column(db.Text)
     abs_comment = db.Column(db.Text)
     evaluated_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    @hybrid_property
+    def total_score(self):
+        """5つの部位のスコアの合計を計算"""
+        return (self.shoulder_score + self.chest_score +
+                self.arm_score + self.back_score + self.abs_score)
+
+    @total_score.expression
+    def total_score(cls):
+        """SQLクエリで使用できるtotal_scoreの式"""
+        return (cls.shoulder_score + cls.chest_score +
+                cls.arm_score + cls.back_score + cls.abs_score)
     
     def to_dict(self):
         return {
@@ -466,6 +478,7 @@ SELECT * FROM evaluations ORDER BY total_score DESC LIMIT 10;
 ✅ **データ設計:**
 - evaluationsテーブル（評価結果保存）
 - ユーザーごとの最高得点を集計
+- `total_score`は計算プロパティとして実装（5つの部位スコアの合計）
 
 ✅ **注意事項:**
 - 本格的な認証機能は未実装（将来追加予定）

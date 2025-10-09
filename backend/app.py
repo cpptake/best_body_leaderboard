@@ -185,7 +185,6 @@ def evaluate():
                 arm_score=evaluation_result['arm_score'],
                 back_score=evaluation_result['back_score'],
                 abs_score=evaluation_result['abs_score'],
-                total_score=evaluation_result['total_score'],
                 shoulder_comment=evaluation_result['comments']['shoulder'],
                 chest_comment=evaluation_result['comments']['chest'],
                 arm_comment=evaluation_result['comments']['arm'],
