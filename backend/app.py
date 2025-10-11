@@ -135,11 +135,11 @@ def evaluate():
                 'error': '比較対象画像の形式が無効です（JPG, JPEG, PNGのみ対応）'
             }), 400
 
-        # ベースライン画像をローカルから読み込み
-        # バックエンドのbaselineディレクトリから参照
+        # ベースライン画像をフロントエンドのpublicディレクトリから読み込み
+        # Docker Composeでマウントされたフロントエンドのpublicディレクトリを参照
         baseline_image_path = os.path.join(
             os.path.dirname(__file__),
-            'baseline', 'baseline.jpg'
+            'frontend_public', 'baseline', 'baseline.jpg'
         )
 
         logger.info(f"ベースライン画像のパス: {baseline_image_path}")

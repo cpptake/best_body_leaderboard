@@ -32,6 +32,7 @@ services:
       - DATABASE_URL=postgresql://bodybuilder:password@db:5432/bodybuilder_db
     volumes:
       - ./backend:/app
+      - ./frontend/public:/app/frontend_public:ro
       - /app/__pycache__
     depends_on:
       db:
