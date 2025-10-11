@@ -8,7 +8,6 @@ import { evaluateImages } from '../lib/api';
 
 export default function Home() {
   const [username, setUsername] = useState('');
-  const [baselineImage, setBaselineImage] = useState(null);
   const [comparisonImage, setComparisonImage] = useState(null);
   const [evaluationResult, setEvaluationResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -22,8 +21,8 @@ export default function Home() {
       return;
     }
 
-    if (!baselineImage || !comparisonImage) {
-      alert('2枚の画像を選択してください');
+    if (!comparisonImage) {
+      alert('画像を選択してください');
       return;
     }
 
@@ -33,7 +32,7 @@ export default function Home() {
 
     try {
       // APIを呼び出し（ユーザー名を含む）
-      const result = await evaluateImages(baselineImage, comparisonImage, username);
+      const result = await evaluateImages(comparisonImage, username);
 
       if (result.success) {
         setEvaluationResult(result);
@@ -50,7 +49,6 @@ export default function Home() {
   // リセット
   const handleReset = () => {
     setUsername('');
-    setBaselineImage(null);
     setComparisonImage(null);
     setEvaluationResult(null);
     setError(null);
@@ -99,29 +97,41 @@ export default function Home() {
                 onUsernameChange={setUsername}
               />
 
+              {/* 2カラムレイアウト: ベースライン画像（左）とアップロード（右）*/}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                <ImageUploader
-                  label="ベースライン画像（基準）"
-                  onImageSelect={setBaselineImage}
-                  selectedImage={baselineImage}
-                />
+                {/* 左側: ベースライン画像 */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-700 text-center">
+                    ベースライン画像
+                  </h3>
+                  <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-gray-50">
+                    <img
+                      src="/baseline/baseline.jpg"
+                      alt="ベースライン画像"
+                      className="w-full h-auto object-contain"
+                    />
+                  </div>
+                </div>
 
-                <ImageUploader
-                  label="比較対象画像"
-                  onImageSelect={setComparisonImage}
-                  selectedImage={comparisonImage}
-                />
+                {/* 右側: アップロード */}
+                <div className="space-y-4">
+                  <ImageUploader
+                    label="あなたの画像をアップロード"
+                    onImageSelect={setComparisonImage}
+                    selectedImage={comparisonImage}
+                  />
+                </div>
               </div>
 
               {/* 評価ボタン */}
               <div className="text-center">
                 <button
                   onClick={handleEvaluate}
-                  disabled={!username || !baselineImage || !comparisonImage || isLoading}
+                  disabled={!username || !comparisonImage || isLoading}
                   className={`
                     px-8 py-4 rounded-lg font-semibold text-white text-lg
                     transition-all duration-200
-                    ${!username || !baselineImage || !comparisonImage || isLoading
+                    ${!username || !comparisonImage || isLoading
                       ? 'bg-gray-400 cursor-not-allowed'
                       : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}
                   `}

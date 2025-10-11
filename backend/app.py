@@ -82,11 +82,10 @@ def validate_username(username):
 @app.route('/api/evaluate', methods=['POST'])
 def evaluate():
     """
-    2枚の画像を評価するエンドポイント
+    画像を評価するエンドポイント（ベースライン画像は固定）
 
     Request:
         - username: ユーザー名（必須）
-        - baseline_image: ベースライン画像ファイル
         - comparison_image: 比較対象画像ファイル
 
     Response:
@@ -109,14 +108,7 @@ def evaluate():
                 'error': str(e)
             }), 400
 
-        # ファイルの存在チェック
-        if 'baseline_image' not in request.files:
-            logger.warning("ベースライン画像が指定されていません")
-            return jsonify({
-                'success': False,
-                'error': 'ベースライン画像が指定されていません'
-            }), 400
-
+        # 比較対象画像のファイルチェック
         if 'comparison_image' not in request.files:
             logger.warning("比較対象画像が指定されていません")
             return jsonify({
@@ -124,20 +116,10 @@ def evaluate():
                 'error': '比較対象画像が指定されていません'
             }), 400
 
-        baseline_file = request.files['baseline_image']
         comparison_file = request.files['comparison_image']
-
-        logger.info(f"ベースライン画像: {baseline_file.filename}")
         logger.info(f"比較対象画像: {comparison_file.filename}")
 
         # ファイル名のチェック
-        if baseline_file.filename == '':
-            logger.warning("ベースライン画像のファイル名が空です")
-            return jsonify({
-                'success': False,
-                'error': 'ベースライン画像のファイル名が空です'
-            }), 400
-
         if comparison_file.filename == '':
             logger.warning("比較対象画像のファイル名が空です")
             return jsonify({
@@ -146,13 +128,6 @@ def evaluate():
             }), 400
 
         # ファイル形式のチェック
-        if not is_allowed_file(baseline_file.filename):
-            logger.warning(f"ベースライン画像の形式が無効: {baseline_file.filename}")
-            return jsonify({
-                'success': False,
-                'error': 'ベースライン画像の形式が無効です（JPG, JPEG, PNGのみ対応）'
-            }), 400
-
         if not is_allowed_file(comparison_file.filename):
             logger.warning(f"比較対象画像の形式が無効: {comparison_file.filename}")
             return jsonify({
@@ -160,11 +135,31 @@ def evaluate():
                 'error': '比較対象画像の形式が無効です（JPG, JPEG, PNGのみ対応）'
             }), 400
 
-        # 画像の準備（バリデーション、リサイズ、Base64エンコード）
+        # ベースライン画像をローカルから読み込み
+        # バックエンドのbaselineディレクトリから参照
+        baseline_image_path = os.path.join(
+            os.path.dirname(__file__),
+            'baseline', 'baseline.jpg'
+        )
+
+        logger.info(f"ベースライン画像のパス: {baseline_image_path}")
+
+        if not os.path.exists(baseline_image_path):
+            logger.error(f"ベースライン画像が見つかりません: {baseline_image_path}")
+            return jsonify({
+                'success': False,
+                'error': 'ベースライン画像が見つかりません。管理者に連絡してください。'
+            }), 500
+
+        # ベースライン画像の準備
         logger.info("ベースライン画像を準備中...")
-        baseline_image_base64 = prepare_image_for_openai(baseline_file)
+        with open(baseline_image_path, 'rb') as f:
+            from werkzeug.datastructures import FileStorage
+            baseline_file = FileStorage(f, filename='baseline.jpg')
+            baseline_image_base64 = prepare_image_for_openai(baseline_file)
         logger.debug(f"ベースライン画像のBase64長: {len(baseline_image_base64)}")
 
+        # 比較対象画像の準備（バリデーション、リサイズ、Base64エンコード）
         logger.info("比較対象画像を準備中...")
         comparison_image_base64 = prepare_image_for_openai(comparison_file)
         logger.debug(f"比較対象画像のBase64長: {len(comparison_image_base64)}")
