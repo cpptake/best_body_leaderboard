@@ -6,6 +6,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from services.openai_service import evaluate_bodybuilder_images
 from utils.image_utils import is_allowed_file, prepare_image_for_openai
+from utils.s3_utils import get_s3_client
 from models.evaluation import db, Evaluation
 from sqlalchemy import desc, func
 
@@ -57,6 +58,50 @@ def health_check():
     ヘルスチェックエンドポイント
     """
     return jsonify({'status': 'healthy'}), 200
+
+
+@app.route('/api/baseline-image', methods=['GET'])
+def get_baseline_image():
+    """
+    S3からベースライン画像の署名付きURLを取得するエンドポイント
+
+    Response:
+        - success: bool
+        - data: {'image_url': str} - 署名付きURL
+        - error: エラーメッセージ（エラー時）
+    """
+    logger.info("=== ベースライン画像URL取得リクエスト開始 ===")
+
+    try:
+        s3_client = get_s3_client()
+
+        if not s3_client.is_available():
+            logger.error("S3クライアントが利用できません")
+            return jsonify({
+                'success': False,
+                'error': 'S3設定が正しくありません'
+            }), 500
+
+        # S3からベースライン画像のキーを取得
+        baseline_image_key = os.getenv('S3_BASELINE_IMAGE_KEY', 'baseline/baseline.jpg')
+
+        # 署名付きURLを生成（有効期限: 1時間）
+        image_url = s3_client.get_image_url(baseline_image_key, expiration=3600)
+
+        logger.info("ベースライン画像のURLを生成しました")
+        return jsonify({
+            'success': True,
+            'data': {
+                'image_url': image_url
+            }
+        }), 200
+
+    except Exception as e:
+        logger.error(f"ベースライン画像URL取得エラー: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': f'ベースライン画像の取得に失敗しました: {str(e)}'
+        }), 500
 
 
 def validate_username(username):
@@ -135,29 +180,37 @@ def evaluate():
                 'error': '比較対象画像の形式が無効です（JPG, JPEG, PNGのみ対応）'
             }), 400
 
-        # ベースライン画像をフロントエンドのpublicディレクトリから読み込み
-        # Docker Composeでマウントされたフロントエンドのpublicディレクトリを参照
-        baseline_image_path = os.path.join(
-            os.path.dirname(__file__),
-            'frontend_public', 'baseline', 'baseline.jpg'
-        )
+        # S3からベースライン画像を取得
+        logger.info("S3からベースライン画像を取得中...")
+        s3_client = get_s3_client()
 
-        logger.info(f"ベースライン画像のパス: {baseline_image_path}")
-
-        if not os.path.exists(baseline_image_path):
-            logger.error(f"ベースライン画像が見つかりません: {baseline_image_path}")
+        if not s3_client.is_available():
+            logger.error("S3クライアントが利用できません")
             return jsonify({
                 'success': False,
-                'error': 'ベースライン画像が見つかりません。管理者に連絡してください。'
+                'error': 'S3設定が正しくありません。管理者に連絡してください。'
             }), 500
 
-        # ベースライン画像の準備
-        logger.info("ベースライン画像を準備中...")
-        with open(baseline_image_path, 'rb') as f:
+        try:
+            # S3からベースライン画像のキーを取得
+            baseline_image_key = os.getenv('S3_BASELINE_IMAGE_KEY', 'baseline/baseline.jpg')
+            logger.info(f"ベースライン画像キー: {baseline_image_key}")
+
+            # S3から画像を取得
+            baseline_image_data = s3_client.get_image(baseline_image_key)
+
+            # FileStorageオブジェクトとして準備
             from werkzeug.datastructures import FileStorage
-            baseline_file = FileStorage(f, filename='baseline.jpg')
+            baseline_file = FileStorage(baseline_image_data, filename='baseline.jpg')
             baseline_image_base64 = prepare_image_for_openai(baseline_file)
-        logger.debug(f"ベースライン画像のBase64長: {len(baseline_image_base64)}")
+            logger.debug(f"ベースライン画像のBase64長: {len(baseline_image_base64)}")
+
+        except Exception as e:
+            logger.error(f"S3からベースライン画像の取得に失敗しました: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': f'ベースライン画像の取得に失敗しました: {str(e)}'
+            }), 500
 
         # 比較対象画像の準備（バリデーション、リサイズ、Base64エンコード）
         logger.info("比較対象画像を準備中...")
