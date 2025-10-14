@@ -19,6 +19,7 @@ class Evaluation(db.Model):
     arm_comment = db.Column(db.Text)
     back_comment = db.Column(db.Text)
     abs_comment = db.Column(db.Text)
+    image_key = db.Column(db.String(255))  # S3に保存された画像のキー
     evaluated_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
     @hybrid_property

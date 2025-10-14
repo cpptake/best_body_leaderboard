@@ -224,6 +224,28 @@ def evaluate():
             comparison_image_base64
         )
 
+        # S3に比較対象画像をアップロード
+        image_key = None
+        try:
+            import uuid
+            from datetime import datetime as dt
+            # ユニークなファイル名を生成
+            timestamp = dt.utcnow().strftime('%Y%m%d_%H%M%S')
+            unique_id = str(uuid.uuid4())[:8]
+            s3_submit_folder = os.getenv('S3_SUBMIT_IMAGE_KEY', 'submit-image/')
+            image_key = f"{s3_submit_folder}{username}_{timestamp}_{unique_id}.jpg"
+
+            # ファイルポインタを先頭に戻す
+            comparison_file.seek(0)
+
+            # S3にアップロード
+            s3_client.upload_image(comparison_file, image_key, content_type='image/jpeg')
+            logger.info(f"画像をS3にアップロードしました: {image_key}")
+        except Exception as s3_error:
+            logger.error(f"S3アップロードエラー: {str(s3_error)}", exc_info=True)
+            # S3アップロードに失敗してもエラーにはしない（評価は成功しているため）
+            image_key = None
+
         # 評価結果をデータベースに保存
         try:
             evaluation = Evaluation(
@@ -237,7 +259,8 @@ def evaluate():
                 chest_comment=evaluation_result['comments']['chest'],
                 arm_comment=evaluation_result['comments']['arm'],
                 back_comment=evaluation_result['comments']['back'],
-                abs_comment=evaluation_result['comments']['abs']
+                abs_comment=evaluation_result['comments']['abs'],
+                image_key=image_key
             )
             db.session.add(evaluation)
             db.session.commit()
@@ -344,14 +367,15 @@ def leaderboard():
             Evaluation.total_score
         ).subquery()
 
-        # ステップ3: リーダーボードクエリを作成（スコア順にソート）
-        leaderboard_query = db.session.query(
-            best_evaluations_subquery.c.username,
-            best_evaluations_subquery.c.total_score.label('best_score'),
-            best_evaluations_subquery.c.evaluated_at.label('latest_evaluation')
+        # ステップ3: 実際のEvaluationレコードを取得（image_keyを含む）
+        leaderboard_query = db.session.query(Evaluation).join(
+            best_evaluations_subquery,
+            (Evaluation.username == best_evaluations_subquery.c.username) &
+            (Evaluation.total_score == best_evaluations_subquery.c.total_score) &
+            (Evaluation.evaluated_at == best_evaluations_subquery.c.evaluated_at)
         ).order_by(
-            desc(best_evaluations_subquery.c.total_score),
-            best_evaluations_subquery.c.username
+            desc(Evaluation.total_score),
+            Evaluation.username
         )
 
         # 総件数の取得
@@ -361,15 +385,31 @@ def leaderboard():
         offset = (page - 1) * per_page
         leaderboard_data = leaderboard_query.limit(per_page).offset(offset).all()
 
+        # S3クライアントの取得
+        s3_client = get_s3_client()
+
         # レスポンスデータの作成
         leaderboard_list = []
-        for idx, (username, best_score, latest_evaluation) in enumerate(leaderboard_data, start=offset + 1):
-            leaderboard_list.append({
+        for idx, evaluation in enumerate(leaderboard_data, start=offset + 1):
+            item = {
                 'rank': idx,
-                'username': username,
-                'best_score': best_score,
-                'evaluated_at': latest_evaluation.isoformat()
-            })
+                'username': evaluation.username,
+                'best_score': evaluation.total_score,
+                'evaluated_at': evaluation.evaluated_at.isoformat()
+            }
+
+            # 画像URLの生成
+            if evaluation.image_key and s3_client.is_available():
+                try:
+                    image_url = s3_client.get_image_url(evaluation.image_key, expiration=3600)
+                    item['image_url'] = image_url
+                except Exception as e:
+                    logger.warning(f"画像URL生成エラー ({evaluation.image_key}): {str(e)}")
+                    item['image_url'] = None
+            else:
+                item['image_url'] = None
+
+            leaderboard_list.append(item)
 
         # ページネーション情報
         total_pages = (total_count + per_page - 1) // per_page

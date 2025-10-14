@@ -72,6 +72,9 @@ export default function LeaderboardTable({ leaderboard }) {
               順位
             </th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b-2 border-gray-300">
+              画像
+            </th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b-2 border-gray-300">
               ユーザー名
             </th>
             <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 border-b-2 border-gray-300">
@@ -101,6 +104,19 @@ export default function LeaderboardTable({ leaderboard }) {
                       {entry.rank}
                     </span>
                   </div>
+                </td>
+                <td className="px-4 py-3">
+                  {entry.image_url ? (
+                    <img
+                      src={entry.image_url}
+                      alt={`${entry.username}の画像`}
+                      className="w-16 h-16 object-cover rounded-lg border-2 border-gray-300 shadow-sm"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 bg-gray-200 rounded-lg border-2 border-gray-300 flex items-center justify-center">
+                      <span className="text-gray-400 text-xs">画像なし</span>
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <span className="text-gray-900 font-medium">{entry.username}</span>
