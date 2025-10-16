@@ -77,8 +77,8 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>ボディビルダー画像比較評価</title>
-        <meta name="description" content="OpenAI Vision APIを使用したボディビルダー画像の比較評価アプリ" />
+        <title>BestBodyLeaderBoard</title>
+        <meta name="description" content="あなたの肉体がベースラインと比較してどれだけ優れているかを評価します" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
@@ -87,10 +87,10 @@ export default function Home() {
           {/* ヘッダー */}
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold text-gray-900 mb-2">
-              💪 ボディビルダー画像比較評価
+              💪 BestBody LeaderBoard
             </h1>
             <p className="text-gray-600">
-              OpenAI Vision APIを使用して2枚の画像を比較評価します
+              VLM as a Judegeであなたの肉体をスコアリング
             </p>
             <div className="mt-4">
               <Link href="/leaderboard">

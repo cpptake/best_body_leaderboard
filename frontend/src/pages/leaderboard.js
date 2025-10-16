@@ -60,9 +60,6 @@ export default function Leaderboard() {
             <h1 className="text-4xl font-bold text-gray-900 mb-2">
               🏆 リーダーボード
             </h1>
-            <p className="text-gray-600 mb-4">
-              各ユーザーの最高得点ランキング
-            </p>
             <Link href="/">
               <span className="inline-block px-6 py-2 bg-primary-400 hover:bg-primary-500 text-white font-semibold rounded-lg transition-colors cursor-pointer">
                 ← メインページに戻る
