@@ -64,7 +64,7 @@ export default function Leaderboard() {
               各ユーザーの最高得点ランキング
             </p>
             <Link href="/">
-              <span className="inline-block px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors cursor-pointer">
+              <span className="inline-block px-6 py-2 bg-primary-400 hover:bg-primary-500 text-white font-semibold rounded-lg transition-colors cursor-pointer">
                 ← メインページに戻る
               </span>
             </Link>
@@ -80,7 +80,7 @@ export default function Leaderboard() {
           {/* ローディング表示 */}
           {isLoading && (
             <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-400"></div>
               <p className="text-gray-600 mt-4">読み込み中...</p>
             </div>
           )}
@@ -100,7 +100,7 @@ export default function Leaderboard() {
                     className={`px-4 py-2 rounded-lg font-semibold ${
                       currentPage === 1
                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-primary-400 text-white hover:bg-primary-500'
                     }`}
                   >
                     ← 前へ
@@ -118,7 +118,7 @@ export default function Leaderboard() {
                     className={`px-4 py-2 rounded-lg font-semibold ${
                       currentPage === pagination.total_pages
                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-primary-400 text-white hover:bg-primary-500'
                     }`}
                   >
                     次へ →

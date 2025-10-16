@@ -19,7 +19,7 @@ export default function EvaluationResult({ result }) {
   const getScoreColor = (score) => {
     if (score >= 7) return 'bg-green-500';
     if (score >= 4) return 'bg-green-400';
-    if (score >= 1) return 'bg-blue-400';
+    if (score >= 1) return 'bg-primary-400';
     if (score >= -3) return 'bg-gray-400';
     if (score >= -6) return 'bg-orange-400';
     return 'bg-red-500';
@@ -38,7 +38,7 @@ export default function EvaluationResult({ result }) {
         <div className={`
           inline-block text-6xl font-bold px-8 py-4 rounded-lg
           ${data.total_score >= 20 ? 'bg-green-100 text-green-700' :
-            data.total_score >= 10 ? 'bg-blue-100 text-blue-700' :
+            data.total_score >= 10 ? 'bg-primary-100 text-primary-700' :
             data.total_score >= 0 ? 'bg-gray-100 text-gray-700' :
             data.total_score >= -10 ? 'bg-orange-100 text-orange-700' :
             'bg-red-100 text-red-700'}
@@ -83,7 +83,7 @@ export default function EvaluationResult({ result }) {
               <span className={`
                 text-2xl font-bold px-4 py-1 rounded
                 ${score >= 5 ? 'text-green-600' :
-                  score >= 1 ? 'text-blue-600' :
+                  score >= 1 ? 'text-primary-600' :
                   score >= -4 ? 'text-gray-600' :
                   'text-red-600'}
               `}>

@@ -129,7 +129,7 @@ export default function Home() {
                       <div className="flex items-center justify-center h-64 bg-gray-100">
                         <div className="text-center">
                           <svg
-                            className="animate-spin h-8 w-8 text-blue-600 mx-auto mb-2"
+                            className="animate-spin h-8 w-8 text-primary-400 mx-auto mb-2"
                             xmlns="http://www.w3.org/2000/svg"
                             fill="none"
                             viewBox="0 0 24 24"
@@ -185,7 +185,7 @@ export default function Home() {
                     transition-all duration-200
                     ${!username || !comparisonImage || isLoading
                       ? 'bg-gray-400 cursor-not-allowed'
-                      : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}
+                      : 'bg-primary-400 hover:bg-primary-500 active:scale-95'}
                   `}
                 >
                   {isLoading ? (

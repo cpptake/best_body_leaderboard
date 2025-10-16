@@ -38,7 +38,7 @@ export default function LeaderboardTable({ leaderboard }) {
   // スコアの色を取得
   const getScoreColor = (score) => {
     if (score >= 40) return 'text-green-600 font-bold';
-    if (score >= 20) return 'text-blue-600 font-semibold';
+    if (score >= 20) return 'text-primary-600 font-semibold';
     if (score >= 0) return 'text-gray-600';
     return 'text-red-600';
   };
