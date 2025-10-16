@@ -2,14 +2,10 @@ import base64
 import logging
 from io import BytesIO
 from PIL import Image
+from config import ImageConfig
 
 # ロガーの設定
 logger = logging.getLogger(__name__)
-
-# 許可する画像形式
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
-MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
-MAX_DIMENSION = 1920  # 最大幅・高さ
 
 
 def is_allowed_file(filename):
@@ -17,7 +13,7 @@ def is_allowed_file(filename):
     ファイル名が許可された拡張子かどうかをチェック
     """
     return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+           filename.rsplit('.', 1)[1].lower() in ImageConfig.ALLOWED_EXTENSIONS
 
 
 def validate_image(file):
@@ -33,9 +29,9 @@ def validate_image(file):
 
     logger.debug(f"画像サイズ: {file_size / (1024*1024):.2f}MB")
 
-    if file_size > MAX_IMAGE_SIZE:
-        logger.error(f"画像サイズが制限を超えています: {file_size / (1024*1024):.2f}MB > {MAX_IMAGE_SIZE // (1024*1024)}MB")
-        raise ValueError(f"画像サイズが大きすぎます（最大{MAX_IMAGE_SIZE // (1024*1024)}MB）")
+    if file_size > ImageConfig.MAX_IMAGE_SIZE:
+        logger.error(f"画像サイズが制限を超えています: {file_size / (1024*1024):.2f}MB > {ImageConfig.MAX_IMAGE_SIZE // (1024*1024)}MB")
+        raise ValueError(f"画像サイズが大きすぎます（最大{ImageConfig.MAX_IMAGE_SIZE // (1024*1024)}MB）")
 
     # 画像として読み込めるかチェック
     try:
@@ -49,11 +45,14 @@ def validate_image(file):
         raise ValueError(f"無効な画像ファイルです: {str(e)}")
 
 
-def resize_image_if_needed(image, max_dimension=MAX_DIMENSION):
+def resize_image_if_needed(image, max_dimension=None):
     """
     画像が大きすぎる場合はリサイズする
     アスペクト比は維持する
     """
+    if max_dimension is None:
+        max_dimension = ImageConfig.MAX_DIMENSION
+
     width, height = image.size
     logger.debug(f"元の画像サイズ: {width}x{height}")
 
@@ -95,7 +94,7 @@ def image_to_base64(file):
         # BytesIOに保存
         logger.debug("画像をJPEG形式でエンコード中...")
         buffer = BytesIO()
-        img.save(buffer, format='JPEG', quality=85)
+        img.save(buffer, format='JPEG', quality=ImageConfig.JPEG_QUALITY)
         buffer.seek(0)
 
         # Base64エンコード

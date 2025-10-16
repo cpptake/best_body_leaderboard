@@ -9,6 +9,14 @@ from utils.image_utils import is_allowed_file, prepare_image_for_openai
 from utils.s3_utils import get_s3_client
 from models.evaluation import db, Evaluation
 from sqlalchemy import desc, func
+from config import (
+    DatabaseConfig,
+    ValidationConfig,
+    PaginationConfig,
+    LoggingConfig,
+    AppConfig,
+    S3Config
+)
 
 # 環境変数の読み込み
 load_dotenv()
@@ -16,8 +24,8 @@ load_dotenv()
 # ロギング設定
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    format=LoggingConfig.LOG_FORMAT,
+    datefmt=LoggingConfig.LOG_DATE_FORMAT
 )
 logger = logging.getLogger(__name__)
 
@@ -33,16 +41,16 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_size': 10,
-    'pool_recycle': 3600,
-    'pool_pre_ping': True,
+    'pool_size': DatabaseConfig.POOL_SIZE,
+    'pool_recycle': DatabaseConfig.POOL_RECYCLE,
+    'pool_pre_ping': DatabaseConfig.POOL_PRE_PING,
 }
 
 # SQLAlchemyの初期化
 db.init_app(app)
 
 # CORS設定
-cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',')
+cors_origins = os.getenv('CORS_ORIGINS', AppConfig.DEFAULT_CORS_ORIGINS).split(',')
 CORS(app, origins=cors_origins)
 logger.info(f"CORS設定完了: {cors_origins}")
 
@@ -83,10 +91,10 @@ def get_baseline_image():
             }), 500
 
         # S3からベースライン画像のキーを取得
-        baseline_image_key = os.getenv('S3_BASELINE_IMAGE_KEY', 'baseline/baseline.jpg')
+        baseline_image_key = S3Config.BASELINE_IMAGE_KEY
 
-        # 署名付きURLを生成（有効期限: 1時間）
-        image_url = s3_client.get_image_url(baseline_image_key, expiration=3600)
+        # 署名付きURLを生成
+        image_url = s3_client.get_image_url(baseline_image_key, expiration=S3Config.URL_EXPIRATION)
 
         logger.info("ベースライン画像のURLを生成しました")
         return jsonify({
@@ -107,7 +115,7 @@ def get_baseline_image():
 def validate_username(username):
     """
     ユーザー名のバリデーション
-    - 1〜50文字
+    - 設定された文字数範囲
     - 英数字、アンダースコア、ハイフンのみ許可
     """
     if not username:
@@ -115,10 +123,10 @@ def validate_username(username):
 
     username = username.strip()
 
-    if len(username) < 1 or len(username) > 50:
-        raise ValueError('ユーザー名は1〜50文字である必要があります')
+    if len(username) < ValidationConfig.USERNAME_MIN_LENGTH or len(username) > ValidationConfig.USERNAME_MAX_LENGTH:
+        raise ValueError(f'ユーザー名は{ValidationConfig.USERNAME_MIN_LENGTH}〜{ValidationConfig.USERNAME_MAX_LENGTH}文字である必要があります')
 
-    if not re.match(r'^[a-zA-Z0-9_-]+$', username):
+    if not re.match(ValidationConfig.USERNAME_PATTERN, username):
         raise ValueError('ユーザー名は英数字、アンダースコア、ハイフンのみ使用できます')
 
     return username
@@ -193,7 +201,7 @@ def evaluate():
 
         try:
             # S3からベースライン画像のキーを取得
-            baseline_image_key = os.getenv('S3_BASELINE_IMAGE_KEY', 'baseline/baseline.jpg')
+            baseline_image_key = S3Config.BASELINE_IMAGE_KEY
             logger.info(f"ベースライン画像キー: {baseline_image_key}")
 
             # S3から画像を取得
@@ -232,8 +240,7 @@ def evaluate():
             # ユニークなファイル名を生成
             timestamp = dt.utcnow().strftime('%Y%m%d_%H%M%S')
             unique_id = str(uuid.uuid4())[:8]
-            s3_submit_folder = os.getenv('S3_SUBMIT_IMAGE_KEY', 'submit-image/')
-            image_key = f"{s3_submit_folder}{username}_{timestamp}_{unique_id}.jpg"
+            image_key = f"{S3Config.SUBMIT_IMAGE_FOLDER}{username}_{timestamp}_{unique_id}.jpg"
 
             # ファイルポインタを先頭に戻す
             comparison_file.seek(0)
@@ -333,13 +340,13 @@ def leaderboard():
     try:
         # クエリパラメータの取得
         page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 20, type=int)
+        per_page = request.args.get('per_page', PaginationConfig.DEFAULT_PER_PAGE, type=int)
 
         # ページネーションのバリデーション
         if page < 1:
             page = 1
-        if per_page < 1 or per_page > 100:
-            per_page = 20
+        if per_page < 1 or per_page > PaginationConfig.MAX_PER_PAGE:
+            per_page = PaginationConfig.DEFAULT_PER_PAGE
 
         logger.info(f"ページ: {page}, 1ページあたり: {per_page}件")
 
@@ -401,7 +408,7 @@ def leaderboard():
             # 画像URLの生成
             if evaluation.image_key and s3_client.is_available():
                 try:
-                    image_url = s3_client.get_image_url(evaluation.image_key, expiration=3600)
+                    image_url = s3_client.get_image_url(evaluation.image_key, expiration=S3Config.URL_EXPIRATION)
                     item['image_url'] = image_url
                 except Exception as e:
                     logger.warning(f"画像URL生成エラー ({evaluation.image_key}): {str(e)}")
@@ -538,7 +545,7 @@ if __name__ == '__main__':
         logger.info("OPENAI_API_KEYが設定されています")
 
     # サーバー起動
-    port = int(os.getenv('PORT', 5000))
+    port = AppConfig.DEFAULT_PORT
     debug = os.getenv('FLASK_ENV') == 'development'
 
     logger.info(f"Flaskサーバーを起動中... (ポート: {port}, デバッグモード: {debug})")

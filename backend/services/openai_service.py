@@ -2,15 +2,16 @@ import os
 import json
 import logging
 from openai import OpenAI
+from config import OpenAIConfig, LoggingConfig
 
 # ロガーの設定
 logger = logging.getLogger(__name__)
 
-# OpenAIクライアントの初期化（タイムアウトを120秒に設定）
+# OpenAIクライアントの初期化
 client = OpenAI(
     api_key=os.getenv('OPENAI_API_KEY'),
-    timeout=120.0,  # 画像解析は時間がかかるため、120秒に設定
-    max_retries=2   # リトライ回数
+    timeout=OpenAIConfig.TIMEOUT,
+    max_retries=OpenAIConfig.MAX_RETRIES
 )
 
 
@@ -80,12 +81,12 @@ def evaluate_bodybuilder_images(baseline_image_base64, comparison_image_base64):
 
     try:
         logger.info("OpenAI Vision APIを呼び出し中...")
-        logger.debug(f"モデル: gpt-4o, max_tokens: 1000, temperature: 0")
+        logger.debug(f"モデル: {OpenAIConfig.MODEL}, max_tokens: {OpenAIConfig.MAX_TOKENS}, temperature: {OpenAIConfig.TEMPERATURE}")
 
         # OpenAI Vision APIを呼び出し
         response = client.chat.completions.create(
-            model = "gpt-4-turbo",#"gpt-4o",
-            messages = [
+            model=OpenAIConfig.MODEL,
+            messages=[
                 {
                     "role": "user",
                     "content": [
@@ -108,15 +109,15 @@ def evaluate_bodybuilder_images(baseline_image_base64, comparison_image_base64):
                     ]
                 }
             ],
-            max_tokens=1000,
-            temperature=0
+            max_tokens=OpenAIConfig.MAX_TOKENS,
+            temperature=OpenAIConfig.TEMPERATURE
         )
 
         logger.info(f"OpenAI APIからレスポンス: {response}")
 
         # レスポンスからJSONを抽出
         content = response.choices[0].message.content
-        logger.debug(f"OpenAI Response Content: {content[:200]}...")  # 最初の200文字のみログ出力
+        logger.debug(f"OpenAI Response Content: {content[:LoggingConfig.DEBUG_CONTENT_MAX_LENGTH]}...")  # 最初の指定文字数のみログ出力
 
         # contentが空の場合のチェック
         if not content or content.strip() == "":

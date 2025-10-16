@@ -3,6 +3,7 @@ import logging
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 from io import BytesIO
+from config import S3Config
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ class S3Client:
         self.aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
         self.aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
         self.bucket_name = os.getenv('AWS_S3_BUCKET')
-        self.region = os.getenv('AWS_REGION', 'ap-northeast-1')
+        self.region = os.getenv('AWS_REGION', S3Config.DEFAULT_REGION)
 
         # 環境変数のチェック
         if not all([self.aws_access_key_id, self.aws_secret_access_key, self.bucket_name]):
@@ -91,13 +92,13 @@ class S3Client:
             logger.error(f"予期しないエラーが発生しました: {str(e)}")
             raise
 
-    def get_image_url(self, key, expiration=3600):
+    def get_image_url(self, key, expiration=None):
         """
         S3オブジェクトの署名付きURLを生成
 
         Args:
             key (str): S3オブジェクトのキー
-            expiration (int): URLの有効期限（秒）
+            expiration (int): URLの有効期限（秒）、Noneの場合はデフォルト値を使用
 
         Returns:
             str: 署名付きURL
@@ -107,6 +108,9 @@ class S3Client:
         """
         if not self.is_available():
             raise ValueError("S3クライアントが初期化されていません")
+
+        if expiration is None:
+            expiration = S3Config.URL_EXPIRATION
 
         try:
             url = self.s3_client.generate_presigned_url(
