@@ -75,3 +75,11 @@ temp/
 
 # Docker
 docker-compose.override.yml
+
+# Baseline images
+frontend/public/baseline/*.jpg
+frontend/public/baseline/*.jpeg
+frontend/public/baseline/*.png
+frontend/public/baseline/*.JPG
+frontend/public/baseline/*.JPEG
+frontend/public/baseline/*.PNG

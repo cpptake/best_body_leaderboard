@@ -1,65 +1,85 @@
+"""
+アプリケーション設定ファイル
+ハードコーディングされたパラメータを一元管理
+"""
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
 
-class Config:
-    """アプリケーション設定"""
+class OpenAIConfig:
+    """OpenAI API関連の設定"""
+    # APIクライアント設定
+    TIMEOUT = float(os.getenv('OPENAI_TIMEOUT', '120.0'))  # タイムアウト（秒）
+    MAX_RETRIES = int(os.getenv('OPENAI_MAX_RETRIES', '2'))  # リトライ回数
 
-    # Flask
-    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-please-change')
-    FLASK_APP = os.getenv('FLASK_APP', 'app.py')
-    FLASK_ENV = os.getenv('FLASK_ENV', 'development')
+    # API呼び出しパラメータ
+    MODEL = os.getenv('OPENAI_MODEL', 'gpt-4-turbo')  # 使用モデル
+    MAX_TOKENS = int(os.getenv('OPENAI_MAX_TOKENS', '1000'))  # 最大トークン数
+    TEMPERATURE = float(os.getenv('OPENAI_TEMPERATURE', '0'))  # 温度パラメータ
 
-    # Database
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-        'DATABASE_URL',
-        'postgresql://postgres:postgres@localhost:5432/best_body_leaderboard'
-    )
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # JWT
-    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'jwt-secret-key-please-change')
-    JWT_ACCESS_TOKEN_EXPIRES = 3600 * 24  # 24 hours
-
-    # OpenAI
-    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-
-    # AWS S3
-    AWS_S3_BUCKET = os.getenv('AWS_S3_BUCKET')
-    AWS_REGION = os.getenv('AWS_REGION', 'ap-northeast-1')
-    AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
-    AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
-
-    # File upload settings
-    MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB
+class ImageConfig:
+    """画像処理関連の設定"""
+    # 許可する画像形式
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
-    # CORS
-    CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',')
+    # 画像サイズ制限
+    MAX_IMAGE_SIZE = int(os.getenv('MAX_IMAGE_SIZE', str(10 * 1024 * 1024)))  # 最大ファイルサイズ（バイト）
+    MAX_DIMENSION = int(os.getenv('MAX_IMAGE_DIMENSION', '1920'))  # 最大幅・高さ（ピクセル）
+
+    # JPEG品質
+    JPEG_QUALITY = int(os.getenv('JPEG_QUALITY', '85'))  # JPEG圧縮品質（1-100）
 
 
-class DevelopmentConfig(Config):
-    """開発環境用設定"""
-    DEBUG = True
-    TESTING = False
+class S3Config:
+    """AWS S3関連の設定"""
+    # デフォルトリージョン
+    DEFAULT_REGION = 'ap-northeast-1'
+
+    # 署名付きURL有効期限
+    URL_EXPIRATION = int(os.getenv('S3_URL_EXPIRATION', '3600'))  # 秒単位（デフォルト: 1時間）
+
+    # S3画像キー
+    BASELINE_IMAGE_KEY = os.getenv('S3_BASELINE_IMAGE_KEY', 'baseline/baseline.jpg')
+    SUBMIT_IMAGE_FOLDER = os.getenv('S3_SUBMIT_IMAGE_KEY', 'submit-image/')
 
 
-class ProductionConfig(Config):
-    """本番環境用設定"""
-    DEBUG = False
-    TESTING = False
+class DatabaseConfig:
+    """データベース関連の設定"""
+    # SQLAlchemy接続プール設定
+    POOL_SIZE = int(os.getenv('DB_POOL_SIZE', '10'))
+    POOL_RECYCLE = int(os.getenv('DB_POOL_RECYCLE', '3600'))  # 秒単位
+    POOL_PRE_PING = os.getenv('DB_POOL_PRE_PING', 'True').lower() == 'true'
 
 
-class TestConfig(Config):
-    """テスト環境用設定"""
-    TESTING = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+class ValidationConfig:
+    """バリデーション関連の設定"""
+    # ユーザー名制約
+    USERNAME_MIN_LENGTH = int(os.getenv('USERNAME_MIN_LENGTH', '1'))
+    USERNAME_MAX_LENGTH = int(os.getenv('USERNAME_MAX_LENGTH', '50'))
+    USERNAME_PATTERN = r'^[a-zA-Z0-9_-]+$'
 
 
-config = {
-    'development': DevelopmentConfig,
-    'production': ProductionConfig,
-    'test': TestConfig,
-    'default': DevelopmentConfig
-}
+class PaginationConfig:
+    """ページネーション関連の設定"""
+    # リーダーボードのページネーション
+    DEFAULT_PER_PAGE = int(os.getenv('LEADERBOARD_PER_PAGE', '20'))
+    MAX_PER_PAGE = int(os.getenv('LEADERBOARD_MAX_PER_PAGE', '100'))
+
+
+class LoggingConfig:
+    """ロギング関連の設定"""
+    # ログフォーマット
+    LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    LOG_DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
+
+    # デバッグログの切り詰め文字数
+    DEBUG_CONTENT_MAX_LENGTH = int(os.getenv('DEBUG_CONTENT_MAX_LENGTH', '200'))
+
+
+class AppConfig:
+    """アプリケーション全体の設定"""
+    # デフォルトポート
+    DEFAULT_PORT = int(os.getenv('PORT', '5000'))
+
+    # CORS設定
+    DEFAULT_CORS_ORIGINS = 'http://localhost:3000'

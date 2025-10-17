@@ -1,53 +1,55 @@
-from models import db, generate_uuid
+from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from sqlalchemy.ext.hybrid import hybrid_property
+
+db = SQLAlchemy()
 
 class Evaluation(db.Model):
     __tablename__ = 'evaluations'
 
-    id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
-    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False, index=True)
-    baseline_image_id = db.Column(db.String(36), db.ForeignKey('baseline_images.id'), nullable=False)
-    comparison_image_id = db.Column(db.String(36), db.ForeignKey('comparison_images.id'), nullable=False)
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), nullable=False, index=True)
     shoulder_score = db.Column(db.Integer, nullable=False)
     chest_score = db.Column(db.Integer, nullable=False)
     arm_score = db.Column(db.Integer, nullable=False)
     back_score = db.Column(db.Integer, nullable=False)
     abs_score = db.Column(db.Integer, nullable=False)
-    total_score = db.Column(db.Integer, nullable=False, index=True)
-    evaluation_comment = db.Column(db.Text)
+    shoulder_comment = db.Column(db.Text)
+    chest_comment = db.Column(db.Text)
+    arm_comment = db.Column(db.Text)
+    back_comment = db.Column(db.Text)
+    abs_comment = db.Column(db.Text)
+    image_key = db.Column(db.String(255))  # S3に保存された画像のキー
     evaluated_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
-    # Composite index for leaderboard queries
-    __table_args__ = (
-        db.Index('idx_evaluations_user_total_score', 'user_id', 'total_score'),
-    )
+    @hybrid_property
+    def total_score(self):
+        """5つの部位のスコアの合計を計算"""
+        return (self.shoulder_score + self.chest_score +
+                self.arm_score + self.back_score + self.abs_score)
 
-    def to_dict(self, include_images=False):
-        """評価情報を辞書形式で返す"""
-        result = {
+    @total_score.expression
+    def total_score(cls):
+        """SQLクエリで使用できるtotal_scoreの式"""
+        return (cls.shoulder_score + cls.chest_score +
+                cls.arm_score + cls.back_score + cls.abs_score)
+
+    def to_dict(self):
+        return {
             'id': self.id,
-            'user_id': self.user_id,
-            'baseline_image_id': self.baseline_image_id,
-            'comparison_image_id': self.comparison_image_id,
-            'scores': {
-                'shoulder': self.shoulder_score,
-                'chest': self.chest_score,
-                'arm': self.arm_score,
-                'back': self.back_score,
-                'abs': self.abs_score,
-                'total': self.total_score
+            'username': self.username,
+            'shoulder_score': self.shoulder_score,
+            'chest_score': self.chest_score,
+            'arm_score': self.arm_score,
+            'back_score': self.back_score,
+            'abs_score': self.abs_score,
+            'total_score': self.total_score,
+            'comments': {
+                'shoulder': self.shoulder_comment,
+                'chest': self.chest_comment,
+                'arm': self.arm_comment,
+                'back': self.back_comment,
+                'abs': self.abs_comment
             },
-            'evaluation_comment': self.evaluation_comment,
-            'evaluated_at': self.evaluated_at.isoformat() if self.evaluated_at else None
+            'evaluated_at': self.evaluated_at.isoformat()
         }
-
-        # Include image data if requested
-        if include_images:
-            result['baseline_image'] = self.baseline_image.to_dict() if self.baseline_image else None
-            result['comparison_image'] = self.comparison_image.to_dict() if self.comparison_image else None
-            result['user'] = self.user.to_dict() if self.user else None
-
-        return result
-
-    def __repr__(self):
-        return f'<Evaluation {self.id} - Total Score: {self.total_score}>'

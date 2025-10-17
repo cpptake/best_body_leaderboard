@@ -1,19 +1,16 @@
-FROM node:20-alpine
+FROM node:18-alpine
 
 WORKDIR /app
 
-# 依存関係のコピーとインストール
-COPY package.json package-lock.json* ./
+# 依存関係のインストール
+COPY package*.json ./
 RUN npm install
 
 # アプリケーションのコピー
 COPY . .
 
-# Next.jsのビルド
-RUN npm run build
-
-# ポート3000を公開
+# ポート公開
 EXPOSE 3000
 
-# アプリケーションの起動
-CMD ["npm", "start"]
+# 開発サーバー起動
+CMD ["npm", "run", "dev"]
