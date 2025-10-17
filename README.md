@@ -5,7 +5,7 @@ VLM（Vision Language Model）を審判として体型をスコアリングし�
 ## 機能
 
 - ユーザー名と体型画像をアップロードして評価
-- OpenAI Vision APIで肩・胸・腕・背中・腹筋の5部位を100点満点で評価
+- OpenAI Vision APIで肩・胸・腕・背中・腹筋の5部位をそれぞれ100点満点で評価（合計500点満点）
 - リーダーボードで全ユーザーの最高得点をランキング表示
 - AWS S3で画像を管理
 
@@ -81,7 +81,7 @@ AWS_REGION=ap-northeast-1
 docker-compose up -d
 ```
 
-アクセス: `http://your-server-ip/home`
+アクセス: `http://your-server-ip`
 
 ## 開発環境セットアップ
 
@@ -94,7 +94,7 @@ nano .env  # OpenAI APIキー、AWS認証情報を設定
 docker-compose up --build
 
 # アクセス
-# http://localhost/home (評価画面)
+# http://localhost (評価画面)
 # http://localhost/leaderboard (リーダーボード)
 ```
 
