@@ -62,7 +62,7 @@ export default function EvaluationResult({ result }) {
         </div>
         <div>
           <h3 className="text-lg font-semibold text-gray-700 mb-2 text-center">
-            比較対象画像
+            サブミット画像
           </h3>
           <img
             src={data.comparison_image_url}
